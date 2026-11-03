@@ -122,7 +122,10 @@ docs/supabase/                9 guides : audit, projet Supabase, GitHub, Vercel,
 
 **Deux modes coexistent sans rien casser** : variables Supabase vides → mode démo (SQLite, comportement actuel) ; variables renseignées → Supabase (Storage d'upload et sessions Auth basculent automatiquement, le reste suit le guide 07).
 
-⚠️ **Action humaine restante** (règle d'honnêteté du cahier des charges §15) : créer le projet sur supabase.com, exécuter les migrations et renseigner les 3 clés — moins de 30 minutes, tout est prêt : voir **`docs/supabase/01-guide-projet-supabase.md`**.
+⚠️ **Statut (mis à jour)** : le projet Supabase `azscjkalcximegzwsupe` est **créé, migré et vérifié**
+(16 tables, RLS active, 33 politiques, seed chargé, 4 buckets, Auth opérationnel). Les 3 clés sont
+configurées en local (`.env`, non commité). **Reste** : créer le dépôt GitHub, renseigner les clés
+dans Vercel et déployer — voir la section « Mise en ligne en 3 étapes » ci-dessus.
 
 ```bash
 # Rejouer la validation de sécurité complète (PostgreSQL local requis)
