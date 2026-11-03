@@ -199,6 +199,17 @@ async function main() {
     { key: "kidsclothes", owner: "Fatou", title: "Jouets éducatifs en bois (lot)", description: "Lot de jouets en bois : puzzle, cubes, empilables. Éducatifs et robustes, aucun élément manquant, nettoyés. Parfait pour les 2-5 ans. Je cherche des livres pour enfants.", cat: "enfants-bebes", condition: "TRES_BON", city: "Thiès", wanted: "livres pour enfants", wantedCat: "Livres & papeterie", days: 14, views: 33 },
     { key: "table", owner: "Ibrahima", title: "Bureau d'étudiant avec rangements", description: "Bureau d'étudiant avec 3 tiroirs et niche pour ordinateur. Structure solide, quelques marques de stylo sur le plateau (effaçables). Je cherche une chaise de bureau ergonomique.", cat: "meubles-decoration", condition: "SATISFAISANT", city: "Touba", wanted: "chaise de bureau", wantedCat: "Meubles & décoration", days: 16, views: 41 },
     { key: "handbag", owner: "Awa", title: "Sac d'ordinateur renforcé", description: "Sac à dos renforcé pour ordinateur 15 pouces, compartiment rembourré, port USB externe, tissu déperlant. Acheté 15 000 FCFA, presque neuf. Je cherche des écouteurs sans fil.", cat: "livres-papeterie", condition: "TRES_BON", city: "Saint-Louis", wanted: "écouteurs sans fil", wantedCat: "Électronique & téléphonie", days: 8, views: 48 },
+    // ----- Nouvelles annonces -----
+    { key: "samsung", owner: "Moussa", title: "Samsung Galaxy A14 128 Go", description: "Samsung Galaxy A14, 128 Go, écran 6,6 pouces impeccable, batterie excellente, toujours protégé avec coque et verre trempé depuis l'achat. Chargeur d'origine inclus. Je cherche un casque bluetooth pour le sport.", cat: "electronique-telephonie", sub: subElec.id, condition: "TRES_BON", city: "Dakar", quartier: "Parcelles Assainies", wanted: "casque bluetooth", wantedCat: "Électronique & téléphonie", days: 3, views: 58, featured: true },
+    { key: "wax", owner: "Fatou", title: "Lot de pagnes wax (6 pièces)", description: "Six pagnes en wax authentique, couleurs vives, jamais coupés ni lavés, motifs variés. Parfaits pour confectionner robes, boubous ou accessoires. Je cherche une machine à coudre en bon état pour mes projets couture.", cat: "vetements-chaussures", condition: "NEUF", city: "Thiès", quartier: "Randoulène", wanted: "machine à coudre", wantedCat: "Maison & jardin", days: 4, views: 47 },
+    { key: "microwave", owner: "Cheikh", title: "Micro-ondes 20L en très bon état", description: "Micro-ondes 20 litres, 700 W, verre et intérieur impeccables, toutes les fonctions testées (réchauffage, décongélation). Plateau tournant d'origine. Je déménage pour Dakar et cherche un casque gaming en échange.", cat: "maison-jardin", condition: "TRES_BON", city: "Kaolack", wanted: "casque gaming", wantedCat: "Électronique & téléphonie", days: 3, views: 19 },
+    { key: "sneakers", owner: "Moussa", title: "Baskets homme taille 43 (quasi neuves)", description: "Baskets homme taille 43, portées trois fois, semelles comme neuves, modèle blanc et bleu très polyvalent. Achetées 18 000 FCFA il y a deux mois. Je reprends mes études de droit, je cherche des manuels de licence en échange.", cat: "vetements-chaussures", condition: "TRES_BON", city: "Dakar", quartier: "Sacré-Cœur", wanted: "manuels de droit", wantedCat: "Livres & papeterie", days: 2, views: 35 },
+    { key: "schoolbag", owner: "Ousmane", title: "Sac à dos scolaire renforcé", description: "Sac à dos renforcé pour l'université : compartiment ordinateur 15 pouces, coutures solides, plusieurs poches de rangement. Utilisé un semestre, très propre. Je cherche une calculatrice scientifique en bon état.", cat: "livres-papeterie", condition: "BON", city: "Thiès", wanted: "calculatrice scientifique", wantedCat: "Livres & papeterie", days: 5, views: 16 },
+    { key: "carseat", owner: "Mariama", title: "Siège auto bébé groupe 1 (9-18 kg)", description: "Siège auto groupe 1 homologué, protections latérales, harnais 5 points, housse déhoussable et lavable. Jamais accidenté, stocké à l'abri. Ma fille vient de passer au siège suivant. Je cherche une poussette légère pour les voyages.", cat: "enfants-bebes", condition: "TRES_BON", city: "Ziguinchor", wanted: "poussette bébé", wantedCat: "Enfants & bébés", days: 5, views: 21 },
+    { key: "fridge", owner: "Ibrahima", title: "Réfrigérateur combiné 250L", description: "Réfrigérateur combiné 250 litres avec freezer, froid ventilé, étagères en verre. Fonctionne parfaitement, à venir tester sur place. Je cherche une machine à laver fonctionnelle en échange.", cat: "maison-jardin", condition: "BON", city: "Touba", wanted: "machine à laver", wantedCat: "Maison & jardin", days: 7, views: 64 },
+    { key: "sewingmachine", owner: "Mariama", title: "Machine à coudre robuste (occasion)", description: "Machine à coudre mécanique très robuste, révisée, pique droit et zigzag parfaitement. Idéale pour retouches et confection de boubous. Livrée avec bobines et aiguilles de rechange. Je cherche du bazin pour mes créations.", cat: "maison-jardin", condition: "BON", city: "Ziguinchor", quartier: "Escale", wanted: "tissus bazin", wantedCat: "Vêtements & chaussures", days: 9, views: 28 },
+    { key: "djembe", owner: "Ousmane", title: "Djembé artisanal sculpté main", description: "Djembé en bois de lenke sculpté à la main, peau de chèvre tendue, son profond et puissant. Hauteur 60 cm, diamètre 32 cm. Acheté à un artisan de Casamance. Je souhaite le troquer contre une guitare acoustique.", cat: "sport-loisirs", condition: "TRES_BON", city: "Mbour", wanted: "guitare acoustique", wantedCat: "Sport & loisirs", days: 6, views: 33 },
+    { key: "bed", owner: "Awa", title: "Lit en bois massif + matelas 140x190", description: "Lit double en bois massif 140x190 avec sommier et matelas ferme en très bon état, protégé par housse depuis l'achat. Déménagement, à récupérer sur place. Je cherche une table de chevet assortie.", cat: "meubles-decoration", condition: "BON", city: "Dakar", quartier: "Mermoz", wanted: "table de chevet", wantedCat: "Meubles & décoration", days: 8, views: 39 },
   ];
 
   const listings: Record<string, string> = {};
@@ -320,7 +331,27 @@ async function main() {
     where: { id: listings["Poussette bébé 3 roues"] },
     data: { status: "EXCHANGED" },
   });
-  console.log("✓ Propositions d'échange (5)");
+  const prop6 = await db.exchangeProposal.create({
+    data: {
+      listingId: listings["Samsung Galaxy A14 128 Go"],
+      proposerId: users["Cheikh"],
+      offeredListingId: listings["Micro-ondes 20L en très bon état"],
+      message: "Bonjour ! Mon micro-ondes (je déménage, je n'en aurai plus l'usage) contre votre Galaxy A14. Test possible à Kaolack.",
+      status: "PENDING",
+    },
+  });
+  const prop7 = await db.exchangeProposal.create({
+    data: {
+      listingId: listings["Lit en bois massif + matelas 140x190"],
+      proposerId: users["Ibrahima"],
+      offeredText: "Table de chevet en bois massif + lampe de bureau assortie",
+      message: "Bonjour Awa, j'ai une table de chevet en bois et une lampe assorties à votre lit. Échange possible ce week-end.",
+      status: "DISCUSSING",
+      counterText: "Merci pour votre offre ! Auriez-vous une photo de la table de chevet ?",
+      respondedAt: new Date(Date.now() - 2 * DAYS),
+    },
+  });
+  console.log(`✓ Propositions d'échange (7)`);
 
   // ==========================================
   // CONVERSATIONS & MESSAGES
@@ -390,6 +421,9 @@ async function main() {
     ["Awa", "Table à manger bois 6 places"],
     ["Cheikh", "Téléviseur LED 40 pouces"],
     ["Moussa", "Lot de vêtements enfants 2-4 ans"],
+    ["Cheikh", "Samsung Galaxy A14 128 Go"],
+    ["Fatou", "Djembé artisanal sculpté main"],
+    ["Mariama", "Lot de pagnes wax (6 pièces)"],
   ];
   for (const [u, t] of favPairs) {
     await db.favorite.create({
