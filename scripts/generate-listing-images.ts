@@ -50,6 +50,22 @@ const jobs: Job[] = [
     prompt: `Official size 5 soccer ball with orange and white panels, very slightly used condition, resting alone on neatly cut green grass, bright sunny daylight, low side angle close-up, softly blurred green field in background, no people, no children, empty field, product photography, ${STYLE}`,
   },
   {
+    file: "maillot-1.jpg",
+    prompt: `Plain green and white football jersey size M, completely blank fabric without any brand mark, no logo, no crest, no emblem, no writing anywhere, neatly laid flat on a light wooden table, short sleeves, crisp fabric folds, small blank white price tag attached, top view product photography, no people, realistic photography, natural lighting, sharp focus, high quality, ${STYLE}`,
+  },
+  {
+    file: "maillot-2.jpg",
+    prompt: `Green and white official football jersey on a wooden hanger against a plain light wall, brand new with blank paper tag, front view, soft natural window light, product photography, no people, no brand logo, no text, realistic photography, sharp focus, high quality, ${STYLE}`,
+  },
+  {
+    file: "laptopbag-1.jpg",
+    prompt: `Modern dark grey reinforced laptop backpack standing upright on a light wooden desk, padded 15 inch laptop bag, water-resistant fabric with subtle texture, side pocket with USB charging port visible, clean bright indoor background, product photography, no people, no brand logo, no text, realistic photography, natural lighting, sharp focus, high quality, ${STYLE}`,
+  },
+  {
+    file: "laptopbag-2.jpg",
+    prompt: `Dark grey laptop backpack open showing padded compartment with a silver 15 inch laptop sliding inside, top-down angle on a light wooden desk, bright indoor light, product photography, no brand logo, no text, realistic photography, sharp focus, high quality, ${STYLE}`,
+  },
+  {
     file: "football-2.jpg",
     prompt: `Classic white and red soccer ball on green grass in front of a goal net, blue sky, slight low angle, ${STYLE}`,
   },
