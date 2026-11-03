@@ -77,8 +77,8 @@ N_CAT=$(curl -s --max-time 10 "$URL/rest/v1/categories?select=id&is_active=eq.tr
 echo "   • Catégories actives : $N_CAT (attendu ≥ 9)"
 N_CITY=$(curl -s --max-time 10 "$URL/rest/v1/cities?select=id" -H "apikey: $KEY" | grep -o '"id"' | wc -l)
 echo "   • Villes : $N_CITY (attendu ≈ 15)"
-FEE=$(curl -s --max-time 10 "$URL/rest/v1/site_settings?select=value&key=eq.publication_fee" -H "apikey: $KEY" | head -c 60)
-echo "   • publication_fee : $FEE (attendu : {\"value\":\"500\"} ou similaire)"
+FEE=$(curl -s --max-time 10 "$URL/rest/v1/site_settings?select=setting_value&setting_key=eq.publication_fee" -H "apikey: $KEY" | head -c 80)
+echo "   • publication_fee : $FEE (attendu : [{\"setting_value\":\"500\"}])"
 
 # 4. Auth
 echo ""
@@ -87,12 +87,18 @@ AUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
   "$URL/auth/v1/health" -H "apikey: $KEY")
 [ "$AUTH_CODE" = "200" ] && echo "   ✅ Supabase Auth opérationnel (HTTP 200)" || echo "   ⚠️  Auth → HTTP $AUTH_CODE"
 
-# 5. Storage
+# 5. Storage (le listing des buckets exige la clé secrète serveur)
 echo ""
 echo "⑤ Buckets Storage…"
-STOR=$(curl -s --max-time 10 "$URL/storage/v1/bucket" -H "apikey: $KEY")
+SK="$(grep '^SUPABASE_SERVICE_ROLE_KEY=' .env 2>/dev/null | cut -d'=' -f2- | tr -d '"')"
+if [ -n "$SK" ]; then
+  STOR=$(curl -s --max-time 10 "$URL/storage/v1/bucket" -H "apikey: $SK" -H "Authorization: Bearer $SK")
+else
+  STOR=""
+  echo "   ⏭️  clé secrète absente du .env — test buckets ignoré"
+fi
 for b in listing-images profile-avatars exchange-images support-attachments; do
-  echo "$STOR" | grep -q "\"$b\"" && echo "   ✅ $b" || echo "   ❌ $b absent (migration 0004 non exécutée ?)"
+  echo "$STOR" | grep -q "\"$b\"" && echo "   ✅ $b" || { [ -n "$SK" ] && echo "   ❌ $b absent"; }
 done
 
 echo ""
