@@ -36,16 +36,21 @@ fi
 echo "🔍 Diagnostic Supabase — $URL"
 echo "============================================================"
 
-# 1. Connectivité REST
+# 1. Connectivité REST (sonde sur une table — la racine /rest/v1/ exige une clé secrète)
 echo ""
 echo "① Connectivité REST…"
 HTTP_CODE=$(curl -s -o /tmp/sb_rest.json -w "%{http_code}" --max-time 10 \
-  "$URL/rest/v1/" -H "apikey: $KEY")
+  "$URL/rest/v1/categories?select=id&limit=1" -H "apikey: $KEY")
+BODY=$(head -c 200 /tmp/sb_rest.json 2>/dev/null)
 if [ "$HTTP_CODE" = "200" ]; then
-  echo "   ✅ PostgREST répond (HTTP $HTTP_CODE)"
+  echo "   ✅ PostgREST répond (HTTP $HTTP_CODE) — table categories accessible"
+elif echo "$BODY" | grep -q "PGRST205"; then
+  echo "   ✅ Projet joignable et clé acceptée, mais AUCUNE TABLE créée"
+  echo "      → exécuter d'abord supabase/bootstrap-all-in-one.sql (SQL Editor)"
+  exit 2
 else
-  echo "   ❌ HTTP $HTTP_CODE — vérifiez l'URL du projet (voir /tmp/sb_rest.json)"
-  cat /tmp/sb_rest.json 2>/dev/null | head -3
+  echo "   ❌ HTTP $HTTP_CODE — vérifiez l'URL et la clé (voir /tmp/sb_rest.json)"
+  echo "      $BODY"
   exit 1
 fi
 
