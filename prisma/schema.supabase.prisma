@@ -1,0 +1,389 @@
+// ============================================================================
+// SAMATROC 🇸🇳 — SCHÉMA PRISMA « PRODUCTION SUPABASE »
+// ----------------------------------------------------------------------------
+// Ce schéma reflète EXACTEMENT les tables créées par les migrations SQL
+// (supabase/migrations) sur le PostgreSQL de Supabase. Il permet de brancher
+// le serveur Next.js (routes API existantes) directement sur Supabase en
+// changeant simplement la source de données :
+//
+//   1. Copier ce fichier vers prisma/schema.prisma (sauvegarder l'ancien)
+//   2. DATABASE_URL="postgresql://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres"
+//   3. bunx prisma generate   (⚠️ ne JAMAIS lancer `db push` ni `migrate dev` :
+//      les tables sont créées par les migrations SQL Supabase, source de vérité)
+//
+// Mapping avec le schéma démo (SQLite) :
+//   model User (démo)  → model Profile (@@map "profiles") — auth assurée par
+//   Supabase Auth : plus de passwordHash ni de tokens maison (voir
+//   docs/07-migration-prisma-supabase.md pour la checklist des routes).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // connexion non poolée (migrations/SQL Editor)
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS (identiques aux migrations SQL)
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+
+  @@map("user_role")
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+
+  @@map("account_status")
+}
+
+enum ItemCondition {
+  NEUF
+  TRES_BON
+  BON
+  SATISFAISANT
+
+  @@map("item_condition")
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  INACTIVE
+  EXCHANGED
+  DELETED
+
+  @@map("listing_status")
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum PaymentProvider {
+  WAVE
+  ORANGE_MONEY
+  TEST
+
+  @@map("payment_provider")
+}
+
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COUNTERED
+  CANCELLED
+  COMPLETED
+
+  @@map("proposal_status")
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+
+  @@map("report_status")
+}
+
+// ---------------------------------------------------------------------------
+// MODÈLES (tables du cahier des charges)
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id             String        @id @db.Uuid
+  fullName       String        @map("full_name")
+  username       String        @unique
+  email          String        @unique
+  phone          String?
+  avatarUrl      String?       @map("avatar_url")
+  city           String?
+  region         String?
+  neighborhood   String?
+  role           UserRole      @default(USER)
+  accountStatus  AccountStatus @default(ACTIVE) @map("account_status")
+  phoneVerified  Boolean       @default(false) @map("phone_verified")
+  showPhone      Boolean       @default(false) @map("show_phone")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  listings    Listing[]
+  payments    Payment[]
+  proposals   ExchangeProposal[] @relation("Proposals")
+  owned       ExchangeProposal[] @relation("Owned")
+  messages    Message[]
+  favorites   Favorite[]
+  conversations ConversationParticipant[]
+  notifications Notification[]
+  reports     Report[]           @relation("ReportReporter")
+  adminLogs   AdminLog[]
+
+  @@map("profiles")
+}
+
+model Category {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  slug         String  @unique
+  description  String?
+  icon         String? @default("package")
+  imageUrl     String? @map("image_url")
+  parentId     String? @map("parent_id") @db.Uuid
+  isActive     Boolean @default(true) @map("is_active")
+  displayOrder Int     @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  listings Listing[]  @relation("ListingCategory")
+  subs     Listing[]  @relation("ListingSubcategory")
+
+  @@map("categories")
+}
+
+model Listing {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String        @map("user_id") @db.Uuid
+  categoryId        String        @map("category_id") @db.Uuid
+  subcategoryId     String?       @map("subcategory_id") @db.Uuid
+  title             String
+  slug              String        @unique
+  reference         String        @unique
+  description       String
+  condition         ItemCondition @default(BON)
+  city              String
+  region            String?
+  neighborhood      String?
+  desiredItem       String        @map("desired_item")
+  desiredCategoryId String?       @map("desired_category_id") @db.Uuid
+  desiredMultiple   Boolean       @default(false) @map("desired_multiple")
+  status            ListingStatus @default(DRAFT)
+  publicationFee    Int           @default(500) @map("publication_fee")
+  paymentId         String?       @map("payment_id") @db.Uuid
+  moderationNote    String?       @map("moderation_note")
+  rejectionReason   String?       @map("rejection_reason")
+  featured          Boolean       @default(false)
+  viewsCount        Int           @default(0) @map("views_count")
+  publishedAt       DateTime?     @map("published_at") @db.Timestamptz(6)
+  expiresAt         DateTime?     @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user      Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  Category           @relation("ListingCategory", fields: [categoryId], references: [id])
+  subcategory Category?        @relation("ListingSubcategory", fields: [subcategoryId], references: [id])
+  payment   Payment?           @relation(fields: [paymentId], references: [id])
+  images    ListingImage[]
+  favorites Favorite[]
+  payments  Payment[]
+  proposals ExchangeProposal[] @relation("ProposalTarget")
+  offeredIn ExchangeProposal[] @relation("ProposalOffered")
+  conversations Conversation[]
+
+  @@map("listings")
+}
+
+model ListingImage {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId    String   @map("listing_id") @db.Uuid
+  imageUrl     String   @map("image_url")
+  storagePath  String?  @map("storage_path")
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@map("listing_images")
+}
+
+model Payment {
+  id                     String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String          @map("user_id") @db.Uuid
+  listingId              String?         @map("listing_id") @db.Uuid
+  amount                 Int
+  currency               String          @default("XOF")
+  paymentProvider        PaymentProvider @map("payment_provider")
+  transactionReference   String          @unique @map("transaction_reference")
+  providerTransactionId  String?         @unique @map("provider_transaction_id")
+  status                 PaymentStatus   @default(PENDING)
+  paymentMethod          String?         @map("payment_method")
+  confirmedAt            DateTime?       @map("confirmed_at") @db.Timestamptz(6)
+  createdAt              DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user    Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing? @relation(fields: [listingId], references: [id])
+
+  @@map("payments")
+}
+
+model ExchangeProposal {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId           String         @map("listing_id") @db.Uuid
+  proposerId          String         @map("proposer_id") @db.Uuid
+  ownerId             String         @map("owner_id") @db.Uuid
+  proposedListingId   String?        @map("proposed_listing_id") @db.Uuid
+  proposedDescription String?        @map("proposed_description")
+  proposedImages      Json           @default("[]") @map("proposed_images")
+  message             String?
+  status              ProposalStatus @default(PENDING)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  listing         Listing  @relation("ProposalTarget", fields: [listingId], references: [id], onDelete: Cascade)
+  proposer        Profile  @relation("Proposals", fields: [proposerId], references: [id], onDelete: Cascade)
+  owner           Profile  @relation("Owned", fields: [ownerId], references: [id], onDelete: Cascade)
+  proposedListing Listing? @relation("ProposalOffered", fields: [proposedListingId], references: [id])
+
+  @@map("exchange_proposals")
+}
+
+model Conversation {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId  String?  @map("listing_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  listing     Listing?                  @relation(fields: [listingId], references: [id])
+  participants ConversationParticipant[]
+  messages    Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  senderId       String    @map("sender_id") @db.Uuid
+  content        String
+  attachmentUrl  String?   @map("attachment_url")
+  isRead         Boolean   @default(false) @map("is_read")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       Profile      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Favorite {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  listingId String   @map("listing_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@map("favorites")
+}
+
+model Notification {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String
+  title     String
+  message   String
+  relatedId String?  @map("related_id") @db.Uuid
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Report {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId     String       @map("reporter_id") @db.Uuid
+  listingId      String?      @map("listing_id") @db.Uuid
+  reportedUserId String?      @map("reported_user_id") @db.Uuid
+  reason         String
+  description    String?
+  status         ReportStatus @default(PENDING)
+  adminNotes     String?      @map("admin_notes")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt     DateTime?    @map("resolved_at") @db.Timestamptz(6)
+
+  reporter Profile @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model AdminLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId    String   @map("admin_id") @db.Uuid
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  admin Profile @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@map("admin_logs")
+}
+
+model SiteSetting {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settingKey   String   @unique @map("setting_key")
+  settingValue String   @map("setting_value")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("site_settings")
+}
+
+model City {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name     String  @unique
+  region   String?
+  isActive Boolean @default(true) @map("is_active")
+
+  @@map("cities")
+}
+
+model SiteContent {
+  page      String   @id
+  title     String
+  body      String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("site_contents")
+}

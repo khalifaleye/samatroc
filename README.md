@@ -41,6 +41,34 @@ L'application est servie sur la route `/` (port 3000).
 
 ---
 
+## ⚡ Infrastructure backend Supabase (production)
+
+Le backend professionnel décrit au cahier des charges est **livré et testé** : migrations PostgreSQL versionnées, Row Level Security complète, Supabase Auth + Storage + Realtime, paiements idempotents, guides de déploiement.
+
+```
+supabase/migrations/          5 migrations SQL (14 tables spec + contraintes, 17 fonctions
+                              SECURITY DEFINER, RLS complète, 4 buckets Storage, Realtime)
+supabase/seed.sql             catégories, 16 villes/régions, paramètres (500 FCFA)
+supabase/tests/run-tests.mjs  55 tests de sécurité exécutés sur PostgreSQL → 55 PASS / 0 FAIL
+prisma/schema.supabase.prisma schéma Prisma de production mappé sur les migrations
+src/lib/supabase/             clients browser / server / service_role + types + Realtime
+src/proxy.ts             rafraîchissement des sessions + en-têtes de sécurité
+docs/supabase/                9 guides : audit, projet Supabase, GitHub, Vercel,
+                              paiements, sauvegarde/restauration, premier admin,
+                              bascule progressive, tests
+```
+
+**Deux modes coexistent sans rien casser** : variables Supabase vides → mode démo (SQLite, comportement actuel) ; variables renseignées → Supabase (Storage d'upload et sessions Auth basculent automatiquement, le reste suit le guide 07).
+
+⚠️ **Action humaine restante** (règle d'honnêteté du cahier des charges §15) : créer le projet sur supabase.com, exécuter les migrations et renseigner les 3 clés — moins de 30 minutes, tout est prêt : voir **`docs/supabase/01-guide-projet-supabase.md`**.
+
+```bash
+# Rejouer la validation de sécurité complète (PostgreSQL local requis)
+bun supabase/tests/run-tests.mjs
+```
+
+---
+
 ## 2. Périmètre fonctionnel livré
 
 ### Pages publiques
@@ -114,9 +142,12 @@ L'application est servie sur la route `/` (port 3000).
 |---|---|
 | Framework | Next.js 16 (App Router) + TypeScript strict |
 | Interface | Tailwind CSS 4 + shadcn/ui (New York) + Lucide + sonner |
-| Base de données | **SQLite** (développement) — schéma Prisma portable vers **PostgreSQL** en production |
-| ORM | Prisma 6 (`prisma/schema.prisma`) |
-| Authentification | JWT HS256 (jose) en cookie httpOnly + bcryptjs |
+| Base de données | **SQLite** (mode démo) / **PostgreSQL Supabase** (production, migrations `supabase/migrations/`) |
+| ORM | Prisma 6 (`prisma/schema.prisma` démo · `prisma/schema.supabase.prisma` prod) |
+| Authentification | JWT HS256 (jose) en cookie httpOnly + bcryptjs — **Supabase Auth + RLS en production** |
+| Sécurité base | RLS sur toutes les tables + grants de colonnes + fonctions SECURITY DEFINER (55 tests auto) |
+| Stockage images | disque local (démo) — **Supabase Storage, 4 buckets** (production) |
+| Temps réel | polling (démo) — **Supabase Realtime** (messages, notifications, annonces) |
 | Validation | Zod côté serveur sur toutes les entrées |
 | État client | Zustand (routeur de vues + authentification) |
 | Images | next/image + compression client + stockage local `/public/uploads` (cloud storage en production) |
@@ -136,6 +167,9 @@ src/lib/                  auth, api-utils (erreurs/erreurs Zod), rate-limit, val
 src/stores/               router-store (navigation par vues), auth-store
 src/views/                public/ auth/ account/ admin/ — 40 vues
 src/docs/                 API.md (contrat complet) + FRONTEND-GUIDE.md
+supabase/                 migrations SQL versionnées, seed, tests de sécurité RLS
+src/lib/supabase/         clients Supabase (browser/server/admin) + types + Realtime
+src/proxy.ts         sessions Supabase Auth + en-têtes de sécurité
 ```
 
 ### Modèle économique
@@ -151,12 +185,23 @@ Français, FCFA, fuseau Africa/Dakar, numéros au format sénégalais (+221), 15
 
 ## 4. Déploiement
 
-### Vercel (recommandé) ou équivalent
-1. Créer une base **PostgreSQL** (Neon, Supabase, Railway…).
-2. Renseigner les variables d'environnement (voir `.env.example`) : `DATABASE_URL`, `AUTH_SECRET` (32+ caractères aléatoires), `NEXT_PUBLIC_SITE_URL`, `PAYMENT_MODE=LIVE` + secrets du prestataire.
-3. Dans `prisma/schema.prisma`, passer `provider = "postgresql"` puis `bun run db:push`.
-4. Déployer ; exécuter le seed éventuel sans les comptes de démo en production.
-5. **Stockage des photos** : remplacer `/api/upload` par un bucket cloud (S3/Supabase Storage) et servir via CDN.
+### Voie recommandée : Supabase + Vercel
+
+Suivre les guides pas-à-pas `docs/supabase/` :
+
+1. **01-guide-projet-supabase.md** — créer le projet, exécuter les 6 fichiers SQL, récupérer les 3 clés.
+2. **02-guide-github.md** — dépôt privé + branches dev/staging/main.
+3. **03-guide-deploiement-vercel.md** — variables par environnement, domaine, URLs Auth, webhooks, tests de production.
+4. **04-guide-paiements.md** — Wave/Orange Money (contrat marchand, mode TEST → LIVE).
+5. **05-guide-sauvegarde-restauration.md** — pg_dump cron, PITR, procédure de sinistre.
+6. **06-premier-admin.md** — `setup_first_super_admin()` (opération serveur sécurisée).
+7. **07-migration-prisma-supabase.md** — bascule progressive des routes sans rupture.
+8. **08-tests-securite.md** — rejouer les 55 tests RLS.
+
+### Alternative PostgreSQL générique (Neon, Railway…)
+1. Renseigner `DATABASE_URL` (PostgreSQL), `AUTH_SECRET` (32+ caractères aléatoires), `NEXT_PUBLIC_SITE_URL`, `PAYMENT_MODE=LIVE` + secrets du prestataire.
+2. Dans `prisma/schema.prisma`, passer `provider = "postgresql"` puis `bun run db:push`.
+3. Déployer ; exécuter le seed éventuel sans les comptes de démo en production.
 
 ### Configuration des paiements (production)
 1. Contracter avec un agrégateur officiellement compatible Sénégal (Wave Business, Orange Money via agrégateur agréé, PayDunya, CinetPay…).
@@ -173,6 +218,8 @@ Français, FCFA, fuseau Africa/Dakar, numéros au format sénégalais (+221), 15
 
 ## 5. Documentation complémentaire
 
+- `docs/supabase/00-audit-backend.md` — audit initial, écarts, architecture retenue, statut honnête.
+- `docs/supabase/01→08` — guides opérationnels (Supabase, GitHub, Vercel, paiements, sauvegardes, admin, bascule, tests).
 - `src/docs/API.md` — contrat complet des 45 endpoints (requêtes, réponses, erreurs).
 - `src/docs/FRONTEND-GUIDE.md` — conventions UI, palette, routeur de vues.
 - `.env.example` — toutes les variables d'environnement documentées.
@@ -182,6 +229,6 @@ Français, FCFA, fuseau Africa/Dakar, numéros au format sénégalais (+221), 15
 - **Route unique `/`** : l'application fonctionne en « vues client » (routeur Zustand) pour l'aperçu sandbox ; en production, mapper chaque vue sur une vraie route Next.js (`/annonces`, `/annonce/[id]`…) — le découpage est déjà isolé dans `src/views/`.
 - Vérification e-mail réelle à brancher sur un SMTP (jetons déjà opérationnels).
 - Vérification du numéro de téléphone par SMS à brancher sur un fournisseur (structure `phoneVerified` prête).
-- Messagerie par polling (4 s) ; évolution possible vers WebSocket pour le temps réel.
+- Messagerie par polling (4 s) en mode démo ; **Supabase Realtime prêt** (helpers fournis) pour le temps réel.
 - Expiration automatique des annonces : `expiresAt` est posé (durée configurable) ; ajouter un job planifié pour le statut EXPIRED + notification.
 - PWA : manifest livré ; ajouter un service worker pour le mode hors-ligne.
