@@ -7,6 +7,68 @@ SamaTroc permet aux particuliers de publier des objets dont ils n'ont plus besoi
 
 ---
 
+## 🚀 Mise en ligne en 3 étapes (Supabase → GitHub → Vercel)
+
+> **Honnêteté** (règle §15 du cahier des charges) : les 3 étapes ci-dessous nécessitent
+> vos comptes personnels (Supabase, GitHub, Vercel) — elles ne peuvent pas être
+> effectuées depuis l'environnement de développement. **Tout le reste est prêt** :
+> migrations, seed, configuration, scripts. Comptez ~30 minutes.
+
+### Étape 1 — Créer la base de données Supabase (~10 min)
+
+1. Ouvrir **https://supabase.com/dashboard/new** → *New project* :
+   - Name : `samatroc-prod` · Region : **West EU (Paris)** (la plus proche du Sénégal)
+   - Database Password : générer et **sauvegarder** (il ne sera plus affiché)
+2. Une fois le projet créé → **SQL Editor** (barre latérale) → *New query* →
+   copier-coller **tout le contenu de `supabase/bootstrap-all-in-one.sql`** → *Run*.
+   *(Une seule exécution crée : 16 tables, 26 fonctions sécurisées, RLS complète,
+   4 buckets Storage, Realtime, catégories/villes/paramètres.)*
+3. **Project Settings → API** : récupérer les 3 valeurs —
+   `Project URL`, `anon public`, `service_role` — à coller dans `.env` (local)
+   et plus tard dans Vercel. ⚠️ `service_role` ne quitte jamais le serveur.
+
+### Étape 2 — Publier le code sur GitHub (~5 min)
+
+1. Créer un dépôt **privé** vide sur https://github.com/new (nom : `samatroc`,
+   sans README initial).
+2. Depuis le projet :
+
+```bash
+bash scripts/push-to-github.sh git@github.com:<votre-org>/samatroc.git
+# → pousse main + crée develop et staging (3 environnements)
+```
+
+*(Ou manuellement : `git remote add origin <url>` puis `git push -u origin main`.)*
+`.env` est exclu du dépôt par `.gitignore` — aucun secret n'est committé.
+
+### Étape 3 — Déployer sur Vercel (~15 min)
+
+1. **https://vercel.com/new** → *Import Git Repository* → `samatroc`.
+   Framework Next.js auto-détecté (le `build` est `next build`, compatible Vercel).
+2. **Avant de cliquer Deploy** : *Environment Variables* → ajouter
+   (Production + Preview + Development) :
+
+| Variable | Valeur |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase (étape 1.3) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | clé anon (étape 1.3) |
+| `SUPABASE_SERVICE_ROLE_KEY` | clé service_role (étape 1.3) ⚠️ secret |
+| `AUTH_SECRET` | chaîne aléatoire ≥ 32 caractères |
+| `NEXT_PUBLIC_SITE_URL` | `https://samatroc.vercel.app` (puis le domaine final) |
+| `PAYMENT_MODE` | `TEST` (jusqu'au contrat Wave/Orange Money — guide 04) |
+
+3. *Deploy* → le site est en ligne sur `https://samatroc.vercel.app`.
+4. Retour sur Supabase → *Authentication → URL Configuration* → ajouter
+   `https://samatroc.vercel.app/**` aux *Redirect URLs*.
+5. Créer le premier super administrateur : s'inscrire sur le site puis suivre
+   **`docs/supabase/06-premier-admin.md`**.
+
+**Guides détaillés** : `docs/supabase/01` (Supabase) · `02` (GitHub) ·
+`03` (Vercel) · `04` (paiements) · `05` (sauvegardes) · `06` (admin) ·
+`07` (bascule) · `08` (tests RLS).
+
+---
+
 ## 1. Démarrage rapide
 
 ```bash

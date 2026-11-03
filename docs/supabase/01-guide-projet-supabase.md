@@ -48,8 +48,15 @@ variables pour **Production**, **Preview** et **Development** (guide 03).
 
 ### Méthode A — Dashboard (la plus simple)
 
+**Option recommandée — un seul copier-coller** :
+
 1. Barre latérale → **SQL Editor** → *New query*
-2. Copier-coller le contenu de chaque fichier **dans l'ordre** puis *Run* :
+2. Copier-coller **tout le contenu de `supabase/bootstrap-all-in-one.sql`**
+   (fusion générée des 6 fichiers ci-dessous, dans le bon ordre) → *Run*.
+
+**Option alternative — fichier par fichier** (utile pour reprendre après une erreur) :
+
+Copier-coller le contenu de chaque fichier **dans l'ordre** puis *Run* :
    1. `supabase/migrations/20260101000001_init.sql`
    2. `supabase/migrations/20260101000002_functions.sql`
    3. `supabase/migrations/20260101000003_rls.sql`

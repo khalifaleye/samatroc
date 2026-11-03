@@ -1,0 +1,70 @@
+# =============================================================================
+# SAMATROC 🇸🇳 — Configuration Supabase CLI
+# -----------------------------------------------------------------------------
+# https://supabase.com/docs/guides/cli/config
+#
+# Démarrage rapide avec votre projet distant :
+#   1. supabase login                      (ouvre le navigateur — access token)
+#   2. supabase link --project-ref <ref>   (ref visible dans l'URL du dashboard)
+#   3. supabase db push                    (applique supabase/migrations/* dans l'ordre)
+#      → À la fin, la CLI propose d'appliquer supabase/seed.sql : accepter.
+#
+# Base locale de développement (facultatif, Docker requis) :
+#   supabase start                         (Postgres + Auth + Storage + Studio local)
+#   supabase db reset                      (migrations + seed.sql en local)
+# =============================================================================
+
+project_id = "samatroc"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = true
+port = 54329
+pool_mode = "transaction"
+
+[realtime]
+enabled = true
+ip_version = "ipv4"
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://samatroc.vercel.app", "https://samatroc.sn"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+
+# ── Les politiques RLS et buckets sont définies dans supabase/migrations/
+# ── (0003_rls.sql et 0004_storage.sql) — rien à configurer ici.
