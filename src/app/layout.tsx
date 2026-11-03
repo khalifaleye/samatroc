@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "fr_SN",
     siteName: "SamaTroc",
-    images: [{ url: "/images/hero.png", width: 1440, height: 720, alt: "SamaTroc" }],
+    images: [{ url: "/images/hero-bright.png", width: 1344, height: 768, alt: "SamaTroc" }],
   },
   twitter: {
     card: "summary_large_image",

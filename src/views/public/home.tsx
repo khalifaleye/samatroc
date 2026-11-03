@@ -182,16 +182,16 @@ export default function HomePage() {
   return (
     <div>
       {/* ================= Bannière principale ================= */}
-      <section className="relative h-[520px] md:h-[600px] bg-forest-950 overflow-hidden">
+      <section className="relative bg-forest-950 overflow-hidden md:h-[600px]">
         <Image
-          src="/images/hero.png"
+          src="/images/hero-bright.png"
           alt="Personnes échangeant des objets sur SamaTroc"
           fill
           priority
           sizes="100vw"
           className="object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-forest-950/85 via-forest-900/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-forest-950/80 via-forest-900/40 to-transparent" />
 
         <div className="relative z-10 mx-auto max-w-7xl h-full px-4 sm:px-6 flex flex-col justify-center gap-8 lg:flex-row lg:items-center lg:justify-between py-10">
           {/* Texte */}
