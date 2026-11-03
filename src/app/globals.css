@@ -1,0 +1,207 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-samatroc);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* ===== Palette SamaTroc ===== */
+  /* Vert forêt (identité principale) */
+  --color-forest-50: #eef8f2;
+  --color-forest-100: #d7efe1;
+  --color-forest-200: #b0dfc5;
+  --color-forest-300: #7fc8a3;
+  --color-forest-400: #4aab7d;
+  --color-forest-500: #278e60;
+  --color-forest-600: #17724c;
+  --color-forest-700: #0e5c3d;
+  --color-forest-800: #0c4a32;
+  --color-forest-900: #0a3d2a;
+  --color-forest-950: #052b1d;
+
+  /* Vert émeraude (boutons & actions) */
+  --color-emerald-brand-50: #e9faf1;
+  --color-emerald-brand-100: #ccf4e0;
+  --color-emerald-brand-200: #99e8c3;
+  --color-emerald-brand-300: #5fd6a1;
+  --color-emerald-brand-400: #2dbd80;
+  --color-emerald-brand-500: #12a05f;
+  --color-emerald-brand-600: #0e8a50;
+  --color-emerald-brand-700: #0c6e40;
+
+  /* Orange mangue (accents & logo) */
+  --color-mango-50: #fff8eb;
+  --color-mango-100: #feefc7;
+  --color-mango-200: #fddc8a;
+  --color-mango-300: #fcc24d;
+  --color-mango-400: #fbae24;
+  --color-mango-500: #f59e0b;
+  --color-mango-600: #d97d06;
+  --color-mango-700: #b45d09;
+
+  /* Vert menthe (arrière-plans clairs) */
+  --color-mint-50: #f0faf4;
+  --color-mint-100: #e2f6eb;
+  --color-mint-200: #c9ecda;
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: #ffffff;
+  --foreground: #12251c;
+  --card: #ffffff;
+  --card-foreground: #12251c;
+  --popover: #ffffff;
+  --popover-foreground: #12251c;
+  --primary: #0e5c3d;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f3;
+  --secondary-foreground: #0e5c3d;
+  --muted: #f3f5f4;
+  --muted-foreground: #5b6b63;
+  --accent: #e2f6eb;
+  --accent-foreground: #0e5c3d;
+  --destructive: #dc2626;
+  --border: #e5e9e7;
+  --input: #dfe5e2;
+  --ring: #12a05f;
+  --chart-1: #12a05f;
+  --chart-2: #f59e0b;
+  --chart-3: #0a3d2a;
+  --chart-4: #4aab7d;
+  --chart-5: #fbae24;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #12251c;
+  --sidebar-primary: #0e5c3d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2f6eb;
+  --sidebar-accent-foreground: #0e5c3d;
+  --sidebar-border: #e5e9e7;
+  --sidebar-ring: #12a05f;
+}
+
+.dark {
+  --background: #0a120e;
+  --foreground: #e7efe9;
+  --card: #101b15;
+  --card-foreground: #e7efe9;
+  --popover: #101b15;
+  --popover-foreground: #e7efe9;
+  --primary: #2dbd80;
+  --primary-foreground: #052b1d;
+  --secondary: #16241d;
+  --secondary-foreground: #e7efe9;
+  --muted: #16241d;
+  --muted-foreground: #93a59b;
+  --accent: #16241d;
+  --accent-foreground: #e7efe9;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.15);
+  --ring: #2dbd80;
+  --chart-1: #2dbd80;
+  --chart-2: #fbae24;
+  --chart-3: #7fc8a3;
+  --chart-4: #4aab7d;
+  --chart-5: #fcc24d;
+  --sidebar: #101b15;
+  --sidebar-foreground: #e7efe9;
+  --sidebar-primary: #2dbd80;
+  --sidebar-primary-foreground: #052b1d;
+  --sidebar-accent: #16241d;
+  --sidebar-accent-foreground: #e7efe9;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #2dbd80;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  /* Barre de défilement personnalisée */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #c9d4ce;
+    border-radius: 999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #a5b5ad;
+  }
+
+  .shadow-card {
+    box-shadow: 0 1px 3px 0 rgb(10 61 42 / 0.06), 0 1px 2px -1px rgb(10 61 42 / 0.06);
+  }
+  .shadow-card-hover {
+    box-shadow: 0 10px 25px -5px rgb(10 61 42 / 0.12), 0 8px 10px -6px rgb(10 61 42 / 0.08);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Animation d'apparition douce */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out both;
+}

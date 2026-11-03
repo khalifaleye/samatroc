@@ -1,0 +1,18 @@
+{
+  "name": "SamaTroc - Échangez vos articles en toute simplicité",
+  "short_name": "SamaTroc",
+  "description": "La plateforme sénégalaise d'échange d'objets entre particuliers. Échangez, économisez, donnez une seconde vie.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0e5c3d",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
