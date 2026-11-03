@@ -52,3 +52,12 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Artefacts de l'environnement de développement (exclus du dépôt)
+/db/
+/tool-results/
+/agent-ctx/
+/download/
+/upload/
+/.zscripts/
+/.imgsearch/
+/tool-results
