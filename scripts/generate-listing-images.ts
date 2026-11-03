@@ -46,8 +46,8 @@ const jobs: Job[] = [
     prompt: `Elegant camel brown leather handbag with gold clasp and removable strap placed on a light wooden table, clean studio product photography, soft shadows, ${STYLE}`,
   },
   {
-    file: "football-1.jpg",
-    prompt: `Senegalese teenagers with dark skin playing football on a sandy neighborhood pitch in Dakar, one boy dribbling an orange and white ball, joyful energy, late afternoon golden light, ${STYLE}`,
+    file: "football-3.jpg",
+    prompt: `Official size 5 soccer ball with orange and white panels, very slightly used condition, resting alone on neatly cut green grass, bright sunny daylight, low side angle close-up, softly blurred green field in background, no people, no children, empty field, product photography, ${STYLE}`,
   },
   {
     file: "football-2.jpg",
