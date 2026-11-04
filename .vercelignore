@@ -1,0 +1,9 @@
+.env
+.env.local
+db/
+dev.log
+server.log
+agent-ctx/
+skills/
+examples/
+supabase/bootstrap-all-in-one.sql
