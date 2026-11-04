@@ -150,28 +150,6 @@ export default function LoginView() {
           S&apos;inscrire
         </button>
       </p>
-
-      <aside className="mt-6 rounded-lg bg-gray-50 p-3 text-xs leading-relaxed text-muted-foreground">
-        <p className="font-semibold text-forest-700">Comptes de démonstration</p>
-        <div className="mt-1.5 space-y-1">
-          <button
-            type="button"
-            onClick={() => prefill("moussa@demo.sn", "demo1234")}
-            className="block w-full rounded px-1 text-left hover:text-forest-700"
-            aria-label="Utiliser le compte de démonstration Moussa"
-          >
-            Membre : moussa@demo.sn / demo1234
-          </button>
-          <button
-            type="button"
-            onClick={() => prefill("admin@samatroc.sn", "admin1234")}
-            className="block w-full rounded px-1 text-left hover:text-forest-700"
-            aria-label="Utiliser le compte administrateur de démonstration"
-          >
-            Admin : admin@samatroc.sn / admin1234
-          </button>
-        </div>
-      </aside>
     </AuthLayout>
   );
 }
