@@ -15,6 +15,8 @@
  * Exécution : bun prisma/seed.ts
  */
 import { PrismaClient } from "@prisma/client";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Garde-fou : l'environnement du bac à sable exporte DATABASE_URL=file:... 
@@ -23,10 +25,7 @@ import { PrismaClient } from "@prisma/client";
  */
 if (!process.env.DATABASE_URL?.startsWith("postgres")) {
   try {
-    const raw = require("node:fs").readFileSync(
-      require("node:path").join(__dirname, "..", ".env"),
-      "utf8"
-    );
+    const raw = readFileSync(join(__dirname, "..", ".env"), "utf8");
     const match = raw.match(/^DATABASE_URL="?([^"\r\n]+)"?\s*$/m);
     if (match) process.env.DATABASE_URL = match[1];
   } catch {
