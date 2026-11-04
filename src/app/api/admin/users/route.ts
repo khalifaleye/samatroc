@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handleRoute, requireAdmin, jsonOk, escapeLike } from "@/lib/api-utils";
+import { splitFullName } from "@/lib/auth";
+import { lookupConfirmedEmails } from "@/lib/admin-helpers";
 
 /** Liste et recherche des utilisateurs (administration) */
 export async function GET(req: NextRequest) {
@@ -16,19 +18,19 @@ export async function GET(req: NextRequest) {
     const where: Record<string, unknown> = {};
     if (q) {
       const like = `%${escapeLike(q)}%`;
+      // Bascule Supabase : le nom complet est une colonne unique (full_name)
       where.OR = [
-        { firstName: { contains: like } },
-        { lastName: { contains: like } },
-        { email: { contains: like } },
-        { phone: { contains: like } },
+        { fullName: { contains: like, mode: "insensitive" } },
+        { email: { contains: like, mode: "insensitive" } },
+        { phone: { contains: like, mode: "insensitive" } },
       ];
     }
-    if (status) where.status = status;
+    if (status) where.accountStatus = status;
     if (role) where.role = role;
 
     const [total, usersRaw] = await Promise.all([
-      db.user.count({ where }),
-      db.user.findMany({
+      db.profile.count({ where }),
+      db.profile.findMany({
         where,
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
@@ -39,21 +41,28 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // emailVerified vit dans auth.users (email_confirmed_at) — une requête pour la page
+    const verified = await lookupConfirmedEmails(usersRaw.map((u) => u.id));
+
     return jsonOk({
-      users: usersRaw.map((u) => ({
-        id: u.id,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        email: u.email,
-        phone: u.phone,
-        city: u.city,
-        role: u.role,
-        status: u.status,
-        emailVerified: u.emailVerified,
-        isDemo: u.isDemo,
-        createdAt: u.createdAt.toISOString(),
-        listingsCount: u._count.listings,
-      })),
+      users: usersRaw.map((u) => {
+        const { firstName, lastName } = splitFullName(u.fullName);
+        return {
+          id: u.id,
+          firstName,
+          lastName,
+          email: u.email,
+          phone: u.phone,
+          city: u.city,
+          role: u.role,
+          status: u.accountStatus,
+          emailVerified: verified.has(u.id),
+          // Flag démo disparu avec la bascule (aucun compte factice en production)
+          isDemo: false,
+          createdAt: u.createdAt.toISOString(),
+          listingsCount: u._count.listings,
+        };
+      }),
       total,
       page,
       pageSize,

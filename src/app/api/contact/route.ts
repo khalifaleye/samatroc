@@ -4,6 +4,13 @@ import { handleRoute, readBody, ApiError, jsonOk, getClientIp } from "@/lib/api-
 import { contactSchema } from "@/lib/validators";
 import { rateLimit } from "@/lib/rate-limit";
 
+/**
+ * Formulaire de contact — bascule Supabase : `db.user` → `db.profile`
+ * (`status` → `accountStatus`), notifications écrites avec `message`
+ * (ex `body`) ; `linkView` n'existe plus (dérivé du type SYSTEM à la
+ * lecture → admin-dashboard).
+ */
+
 /** Formulaire de contact : notifie les administrateurs */
 export async function POST(req: NextRequest) {
   return handleRoute(async () => {
@@ -13,8 +20,8 @@ export async function POST(req: NextRequest) {
       throw new ApiError(429, "Trop de messages envoyés. Réessayez plus tard.");
     }
 
-    const admins = await db.user.findMany({
-      where: { role: { in: ["ADMIN", "SUPER_ADMIN"] }, status: "ACTIVE" },
+    const admins = await db.profile.findMany({
+      where: { role: { in: ["ADMIN", "SUPER_ADMIN"] }, accountStatus: "ACTIVE" },
       select: { id: true },
     });
 
@@ -24,8 +31,7 @@ export async function POST(req: NextRequest) {
           userId: a.id,
           type: "SYSTEM",
           title: `Contact : ${input.subject}`,
-          body: `${input.name} (${input.email}) écrit : ${input.message.slice(0, 180)}${input.message.length > 180 ? "…" : ""}`,
-          linkView: "admin-dashboard",
+          message: `${input.name} (${input.email}) écrit : ${input.message.slice(0, 180)}${input.message.length > 180 ? "…" : ""}`,
         })),
       });
     }

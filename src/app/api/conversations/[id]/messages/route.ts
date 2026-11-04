@@ -3,6 +3,14 @@ import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { handleRoute, readBody, ApiError, jsonOk } from "@/lib/api-utils";
 import { messageSchema } from "@/lib/validators";
+import { blockedBetween, isUuid, serializeMessage } from "@/app/api/_shared/domain";
+
+/**
+ * Envoi d'un message — bascule Supabase : `imageUrl` → `attachmentUrl`,
+ * participant vérifié via `conversation_participants`, notification écrite
+ * avec `message`/`relatedId` (ex body/linkView/linkParams). Identifiant de
+ * conversation non uuid → 404 (les cibles Supabase sont des uuid).
+ */
 
 /** Envoi d'un message dans une conversation */
 export async function POST(
@@ -13,58 +21,50 @@ export async function POST(
     const session = await getSessionUser();
     if (!session) throw new ApiError(401, "Connexion requise");
     const { id } = await params;
+    if (!isUuid(id)) throw new ApiError(404, "Conversation introuvable");
     const input = await readBody(req, messageSchema);
 
-    const conversation = await db.conversation.findUnique({ where: { id } });
+    const conversation = await db.conversation.findUnique({
+      where: { id },
+      include: { participants: { select: { userId: true } } },
+    });
     if (!conversation) throw new ApiError(404, "Conversation introuvable");
-    if (conversation.userAId !== session.id && conversation.userBId !== session.id) {
-      throw new ApiError(403, "Cette conversation est privée");
+
+    const isParticipant = conversation.participants.some((p) => p.userId === session.id);
+    if (!isParticipant) throw new ApiError(403, "Cette conversation est privée");
+
+    const otherId =
+      conversation.participants.find((p) => p.userId !== session.id)?.userId ?? "";
+
+    const blocks = blockedBetween(session.id, otherId);
+    if (blocks.fromOther) {
+      throw new ApiError(403, "Vous ne pouvez plus envoyer de message dans cette conversation");
     }
-
-    const otherId = conversation.userAId === session.id ? conversation.userBId : conversation.userAId;
-
-    const blockFromMe = await db.block.findFirst({ where: { blockerId: session.id, blockedId: otherId } });
-    const blockFromOther = await db.block.findFirst({ where: { blockerId: otherId, blockedId: session.id } });
-    if (blockFromOther) throw new ApiError(403, "Vous ne pouvez plus envoyer de message dans cette conversation");
-    if (blockFromMe) throw new ApiError(403, "Vous avez bloqué cet utilisateur. Débloquez-le pour lui écrire.");
+    if (blocks.fromMe) {
+      throw new ApiError(403, "Vous avez bloqué cet utilisateur. Débloquez-le pour lui écrire.");
+    }
 
     const message = await db.message.create({
       data: {
         conversationId: id,
         senderId: session.id,
         content: input.content,
-        imageUrl: input.imageUrl || null,
-      },
-    });
-    await db.conversation.update({
-      where: { id },
-      data: { lastMessageAt: new Date() },
-    });
-
-    await db.notification.create({
-      data: {
-        userId: otherId,
-        type: "MESSAGE",
-        title: "Nouveau message",
-        body: `${session.firstName} : ${input.content.slice(0, 80)}${input.content.length > 80 ? "…" : ""}`,
-        linkView: "messages",
-        linkParams: JSON.stringify({ id }),
+        attachmentUrl: input.imageUrl || null,
       },
     });
 
-    return jsonOk(
-      {
-        message: {
-          id: message.id,
-          senderId: message.senderId,
-          type: message.type,
-          content: message.content,
-          imageUrl: message.imageUrl,
-          readAt: null,
-          createdAt: message.createdAt.toISOString(),
+    if (otherId) {
+      await db.notification.create({
+        data: {
+          userId: otherId,
+          type: "MESSAGE",
+          title: "Nouveau message",
+          message: `${session.firstName} : ${input.content.slice(0, 80)}${input.content.length > 80 ? "…" : ""}`,
+          relatedId: id,
         },
-      },
-      201
-    );
+      });
+    }
+
+    return jsonOk({ message: serializeMessage(message) }, 201);
   });
 }

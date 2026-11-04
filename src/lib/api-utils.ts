@@ -3,6 +3,10 @@
  * - Réponses JSON normalisées
  * - Gestion centralisée des erreurs
  * - Garde d'accès : requireAuth / requireAdmin
+ *
+ * Auth : depuis la bascule Supabase, `getSessionUser()` (src/lib/auth.ts)
+ * combine l'utilisateur Supabase Auth (cookies @supabase/ssr) et le profil
+ * applicatif Prisma (`profiles`). `requireAdmin` = rôle ADMIN ou SUPER_ADMIN.
  */
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";

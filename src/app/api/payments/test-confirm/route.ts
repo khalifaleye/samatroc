@@ -27,14 +27,23 @@ export async function POST(req: NextRequest) {
 
     const { reference } = await readBody(req, z.object({ reference: z.string().min(5) }));
 
-    const payment = await db.payment.findUnique({ where: { reference } });
+    const payment = await db.payment.findUnique({ where: { transactionReference: reference } });
     if (!payment) throw new ApiError(404, "Transaction introuvable");
     if (payment.userId !== session.id) throw new ApiError(403, "Action non autorisée");
-    if (!payment.isTest) throw new ApiError(409, "Cette transaction n'est pas une transaction de test");
+    // Bascule Supabase : une transaction de test porte le prestataire TEST
+    if (payment.paymentProvider !== "TEST") {
+      throw new ApiError(409, "Cette transaction n'est pas une transaction de test");
+    }
 
     const result = await finalizePayment(reference, "SUCCESS", `TEST-${Date.now()}`);
     if (!result.ok && result.error === "TRANSACTION_NOT_FOUND") {
       throw new ApiError(404, "Transaction introuvable");
+    }
+    if (!result.ok) {
+      throw new ApiError(
+        409,
+        "Cette transaction ne peut plus être confirmée (déjà traitée ou refusée)."
+      );
     }
 
     return jsonOk({

@@ -1,7 +1,12 @@
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { handleRoute, ApiError, jsonOk } from "@/lib/api-utils";
-import { listingInclude, serializeListing, getPublicationFee } from "@/lib/serializers";
+import {
+  listingInclude,
+  serializeListing,
+  getPublicationFee,
+  loadDesiredCategoryNames,
+} from "@/lib/serializers";
 
 /** Mes favoris */
 export async function GET() {
@@ -16,10 +21,13 @@ export async function GET() {
     });
 
     const fee = await getPublicationFee();
+    const listings = favorites
+      .filter((f) => f.listing)
+      .map((f) => f.listing);
+    const desiredCategoryNames = await loadDesiredCategoryNames(listings);
+
     return jsonOk({
-      listings: favorites
-        .filter((f) => f.listing)
-        .map((f) => serializeListing(f.listing, true, fee)),
+      listings: listings.map((l) => serializeListing(l, true, fee, desiredCategoryNames)),
     });
   });
 }

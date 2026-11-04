@@ -4,12 +4,18 @@ import { getSessionUser } from "@/lib/auth";
 import { handleRoute, readBody, ApiError, jsonOk } from "@/lib/api-utils";
 import { paymentInitiateSchema } from "@/lib/validators";
 import { generatePaymentReference, getPublicationFee } from "@/lib/serializers";
+import { legacyPaymentStatus } from "@/lib/payments";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/rate-limit";
+import type { Payment, PaymentProvider } from "@prisma/client";
 
 /**
  * Initialisation d'un paiement de publication.
- * - Référence de transaction unique
+ * - Référence de transaction unique (générée par la base pour create_payment)
  * - Prévention des doubles paiements (idempotent sur PENDING)
+ * - Création préférée via la fonction SQL `create_payment` (SECURITY DEFINER,
+ *   JWT utilisateur : le propriétaire est vérifié en base), repli applicatif
+ *   Prisma si le SDK/la fonction n'est pas disponible
  * - Aucun code PIN Mobile Money n'est jamais demandé ni stocké
  */
 export async function POST(req: NextRequest) {
@@ -29,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (listing.status === "PUBLISHED") {
       throw new ApiError(409, "Cette annonce est déjà publiée (paiement déjà confirmé)");
     }
-    if (!["PENDING_PAYMENT", "DRAFT", "REFUSED"].includes(listing.status)) {
+    if (!["PENDING_PAYMENT", "DRAFT", "REJECTED"].includes(listing.status)) {
       throw new ApiError(409, "Cette annonce ne nécessite pas de paiement pour le moment");
     }
 
@@ -40,27 +46,71 @@ export async function POST(req: NextRequest) {
         ? "LIVE"
         : "TEST";
 
-    // Idempotence : réutilise un paiement PENDING existant pour cette annonce
-    let payment = await db.payment.findFirst({
+    // Mode test clairement identifié : la transaction porte le prestataire TEST
+    // (aucun paiement réel n'est débité). En LIVE : prestataire choisi.
+    const provider: PaymentProvider = effectiveMode === "TEST" ? "TEST" : input.provider;
+    const method =
+      input.provider === "WAVE" ? "Wave" : input.provider === "ORANGE_MONEY" ? "Orange Money" : "Test";
+
+    // Idempotence : réutilise un paiement PENDING/PROCESSING existant pour cette annonce
+    let payment: Payment | null = await db.payment.findFirst({
       where: { listingId: listing.id, status: { in: ["PENDING", "PROCESSING"] } },
+      orderBy: { createdAt: "desc" },
     });
 
     if (!payment) {
-      payment = await db.payment.create({
-        data: {
-          reference: generatePaymentReference(),
-          userId: session.id,
-          listingId: listing.id,
-          amount: fee,
-          provider: input.provider,
-          method: input.provider === "WAVE" ? "Wave" : input.provider === "ORANGE_MONEY" ? "Orange Money" : "Test",
-          phone: input.phone || null,
-          status: "PENDING",
-          isTest: effectiveMode === "TEST",
-        },
-      });
+      // 1) Fonction SQL create_payment (auth.uid() = propriétaire via cookies)
+      const supabase = await getSupabaseServerClient();
+      if (supabase) {
+        // Aligne le frais facturé (snapshot annonce) sur le paramétrage
+        // site_settings — comportement historique (fee lu par l'UI).
+        if (listing.publicationFee !== fee) {
+          await db.listing.update({
+            where: { id: listing.id },
+            data: { publicationFee: fee },
+          });
+        }
+        try {
+          const { data, error } = await supabase.rpc("create_payment", {
+            p_listing_id: listing.id,
+            p_provider: provider,
+            p_method: method,
+          });
+          if (error) throw error;
+          if (data?.transaction_reference) {
+            payment = await db.payment.findUnique({
+              where: { transactionReference: data.transaction_reference },
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (message.includes("ANNONCE_DEJA_PAYEE")) {
+            throw new ApiError(409, "Cette annonce est déjà publiée (paiement déjà confirmé)");
+          }
+          if (message.includes("PAS_PROPRIETAIRE") || message.includes("ANNONCE_INTROUVABLE")) {
+            throw new ApiError(404, "Annonce introuvable");
+          }
+          console.error("[payments/initiate] create_payment SQL :", message);
+        }
+      }
+
+      // 2) Repli applicatif (backend de confiance) — mêmes règles que la SQL
+      if (!payment) {
+        payment = await db.payment.create({
+          data: {
+            transactionReference: generatePaymentReference(),
+            userId: session.id,
+            listingId: listing.id,
+            amount: fee,
+            paymentProvider: provider,
+            paymentMethod: method,
+            status: "PENDING",
+          },
+        });
+      }
     }
 
+    // publish_listing (SQL) n'active que les annonces en PENDING_PAYMENT
     await db.listing.update({
       where: { id: listing.id },
       data: { status: "PENDING_PAYMENT" },
@@ -70,16 +120,16 @@ export async function POST(req: NextRequest) {
     // avec redirection vers l'URL de paiement, puis confirmation par webhook signé.
     const instructions =
       effectiveMode === "TEST"
-        ? `Mode test clairement identifié : aucun paiement réel n'est débité. Référence ${payment.reference} — utilisez le bouton « Simuler la confirmation (mode test) » pour valider le flux serveur complet.`
-        : `Suivez les instructions ${payment.method} sur votre téléphone. Votre annonce sera activée dès confirmation du paiement par le serveur.`;
+        ? `Mode test clairement identifié : aucun paiement réel n'est débité. Référence ${payment.transactionReference} — utilisez le bouton « Simuler la confirmation (mode test) » pour valider le flux serveur complet.`
+        : `Suivez les instructions ${payment.paymentMethod ?? method} sur votre téléphone. Votre annonce sera activée dès confirmation du paiement par le serveur.`;
 
     return jsonOk(
       {
         payment: {
-          reference: payment.reference,
+          reference: payment.transactionReference,
           amount: payment.amount,
-          status: payment.status,
-          provider: payment.provider,
+          status: legacyPaymentStatus(payment.status),
+          provider: payment.paymentProvider,
         },
         effectiveMode,
         instructions,

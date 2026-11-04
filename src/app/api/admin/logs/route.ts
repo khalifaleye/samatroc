@@ -2,6 +2,15 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handleRoute, requireAdmin, jsonOk } from "@/lib/api-utils";
 
+/**
+ * Normalise admin_logs.details (jsonb — les fonctions SQL y stockent des
+ * objets) vers le contrat des vues : string | null.
+ */
+function logDetailsToString(details: unknown): string | null {
+  if (details === null || details === undefined) return null;
+  return typeof details === "string" ? details : JSON.stringify(details);
+}
+
 /** Journal des actions administratives (traçabilité) */
 export async function GET(req: NextRequest) {
   return handleRoute(async () => {
@@ -15,7 +24,7 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { admin: { select: { firstName: true, lastName: true } } },
+        include: { admin: { select: { fullName: true } } },
       }),
     ]);
 
@@ -25,9 +34,9 @@ export async function GET(req: NextRequest) {
         action: l.action,
         targetType: l.targetType,
         targetId: l.targetId,
-        details: l.details,
+        details: logDetailsToString(l.details),
         createdAt: l.createdAt.toISOString(),
-        admin: `${l.admin.firstName} ${l.admin.lastName}`,
+        admin: l.admin.fullName,
       })),
       total,
       page,

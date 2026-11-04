@@ -7,10 +7,15 @@ import {
   listingInclude,
   serializeListing,
   getPublicationFee,
+  loadDesiredCategoryNames,
   detectSuspiciousContent,
 } from "@/lib/serializers";
 
-const EDITABLE_ALWAYS = ["city", "quartier"];
+/** Les ids d'annonce sont des uuid en base (PostgreSQL Supabase). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Clés MODIFIABLES telles qu'envoyées par les vues (contrat inchangé) → colonnes Supabase */
+const EDITABLE_ALWAYS = ["city", "quartier"] as const;
 const EDITABLE_UNPAID = [
   "title",
   "description",
@@ -20,7 +25,9 @@ const EDITABLE_UNPAID = [
   "wantedText",
   "wantedCategory",
   "wantedMultiple",
-];
+] as const;
+/** Statuts « payée/publiée » : enum base (INACTIVE remplace DEACTIVATED) */
+const PAID_STATUSES = ["PUBLISHED", "EXCHANGED", "INACTIVE"];
 
 /** Détail public d'une annonce + annonces similaires */
 export async function GET(
@@ -30,6 +37,7 @@ export async function GET(
   return handleRoute(async () => {
     const { id } = await params;
     const session = await getSessionUser();
+    if (!UUID_RE.test(id)) throw new ApiError(404, "Annonce introuvable");
 
     const listing = await db.listing.findUnique({
       where: { id },
@@ -39,13 +47,12 @@ export async function GET(
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            fullName: true,
             avatarUrl: true,
             city: true,
             phone: true,
             createdAt: true,
-            profile: { select: { showPhone: true, whatsappEnabled: true } },
+            showPhone: true,
             _count: { select: { listings: { where: { status: "PUBLISHED" } } } },
           },
         },
@@ -80,19 +87,11 @@ export async function GET(
     });
 
     const fee = await getPublicationFee();
-    const base = serializeListing(listing, isFavorite, fee);
+    const desiredCategoryNames = await loadDesiredCategoryNames([listing, ...similarRaw]);
+    const base = serializeListing(listing, isFavorite, fee, desiredCategoryNames);
 
-    const owner = listing.user as unknown as {
-      id: string;
-      firstName: string;
-      lastName: string;
-      avatarUrl: string | null;
-      city: string | null;
-      phone: string | null;
-      createdAt: Date;
-      profile: { showPhone: boolean; whatsappEnabled: boolean } | null;
-      _count: { listings: number };
-    };
+    const owner = listing.user;
+    const ownerName = { firstName: base.owner.firstName, lastName: base.owner.lastName };
 
     return jsonOk({
       listing: {
@@ -106,20 +105,22 @@ export async function GET(
           : null,
         owner: {
           id: owner.id,
-          firstName: owner.firstName,
-          lastName: owner.lastName,
+          firstName: ownerName.firstName,
+          lastName: ownerName.lastName,
           avatarUrl: owner.avatarUrl,
           city: owner.city,
           memberSince: owner.createdAt.toISOString(),
           listingsCount: owner._count.listings,
           // Numéro jamais exposé sans le choix du propriétaire
-          showPhone: owner.profile?.showPhone ?? false,
-          phone: owner.profile?.showPhone ? owner.phone : null,
-          whatsappEnabled: owner.profile?.whatsappEnabled ?? true,
+          showPhone: owner.showPhone,
+          phone: owner.showPhone ? owner.phone : null,
+          // La colonne whatsapp_enabled n'existe plus : le bouton WhatsApp suit
+          // le même consentement que l'affichage du téléphone.
+          whatsappEnabled: owner.showPhone,
         },
         isOwner,
       },
-      similar: similarRaw.map((l) => serializeListing(l, false, fee)),
+      similar: similarRaw.map((l) => serializeListing(l, false, fee, desiredCategoryNames)),
     });
   });
 }
@@ -133,6 +134,7 @@ export async function PATCH(
     const session = await getSessionUser();
     if (!session) throw new ApiError(401, "Connexion requise");
     const { id } = await params;
+    if (!UUID_RE.test(id)) throw new ApiError(404, "Annonce introuvable");
     const input = await listingUpdateSchema.parseAsync(await req.json());
 
     const listing = await db.listing.findUnique({ where: { id } });
@@ -142,16 +144,48 @@ export async function PATCH(
     const isStaff = session.role === "ADMIN" || session.role === "SUPER_ADMIN";
     if (!isOwner && !isStaff) throw new ApiError(403, "Action non autorisée");
 
-    const paidStatuses = ["PUBLISHED", "EXCHANGED", "DEACTIVATED"];
     const data: Record<string, unknown> = {};
+
+    // wantedCategory : l'UI envoie un NOM de catégorie — résolution vers l'uuid
+    const resolveWantedCategory = async (value: unknown): Promise<string | null> => {
+      const name = typeof value === "string" ? value.trim() : "";
+      if (!name) return null;
+      const cat = await db.category.findFirst({
+        where: {
+          OR: [{ name: { equals: name, mode: "insensitive" } }, { slug: { equals: name.toLowerCase() } }],
+        },
+        select: { id: true },
+      });
+      return cat?.id ?? null;
+    };
 
     for (const [key, value] of Object.entries(input)) {
       if (value === undefined || key === "images") continue;
-      if (EDITABLE_ALWAYS.includes(key)) {
-        data[key] = value === "" ? null : value;
-      } else if (EDITABLE_UNPAID.includes(key)) {
-        if (isStaff || !paidStatuses.includes(listing.status)) {
-          data[key] = value === "" ? null : value;
+      if ((EDITABLE_ALWAYS as readonly string[]).includes(key)) {
+        // city : chaîne requise ; quartier → neighborhood (nullable)
+        if (key === "city") {
+          data.city = value;
+        } else {
+          data.neighborhood = value === "" ? null : value;
+        }
+      } else if ((EDITABLE_UNPAID as readonly string[]).includes(key)) {
+        if (isStaff || !PAID_STATUSES.includes(listing.status)) {
+          switch (key) {
+            case "wantedText":
+              data.desiredItem = value;
+              break;
+            case "wantedCategory":
+              data.desiredCategoryId = await resolveWantedCategory(value);
+              break;
+            case "wantedMultiple":
+              data.desiredMultiple = value;
+              break;
+            case "subcategoryId":
+              data.subcategoryId = value === "" ? null : value;
+              break;
+            default:
+              data[key] = value;
+          }
         } else {
           throw new ApiError(
             409,
@@ -165,7 +199,7 @@ export async function PATCH(
       const note = detectSuspiciousContent(
         (data.title as string) ?? listing.title,
         (data.description as string) ?? listing.description,
-        (data.wantedText as string) ?? listing.wantedText
+        (data.desiredItem as string) ?? listing.desiredItem
       );
       if (note) data.moderationNote = note;
     }
@@ -179,9 +213,9 @@ export async function PATCH(
         await db.listingImage.createMany({
           data: input.images.map((img, i) => ({
             listingId: id,
-            url: img.url,
+            imageUrl: img.url,
             isPrimary: img.isPrimary || i === 0,
-            sortOrder: i,
+            displayOrder: i,
           })),
         });
       }
@@ -189,7 +223,10 @@ export async function PATCH(
 
     const updated = await db.listing.findUnique({ where: { id }, include: listingInclude });
     const fee = await getPublicationFee();
-    return jsonOk({ listing: updated ? serializeListing(updated, false, fee) : null });
+    const desiredCategoryNames = updated ? await loadDesiredCategoryNames([updated]) : undefined;
+    return jsonOk({
+      listing: updated ? serializeListing(updated, false, fee, desiredCategoryNames) : null,
+    });
   });
 }
 
@@ -202,6 +239,7 @@ export async function DELETE(
     const session = await getSessionUser();
     if (!session) throw new ApiError(401, "Connexion requise");
     const { id } = await params;
+    if (!UUID_RE.test(id)) throw new ApiError(404, "Annonce introuvable");
 
     const listing = await db.listing.findUnique({ where: { id } });
     if (!listing) throw new ApiError(404, "Annonce introuvable");
@@ -209,7 +247,8 @@ export async function DELETE(
     const isOwner = listing.userId === session.id;
     const isStaff = session.role === "ADMIN" || session.role === "SUPER_ADMIN";
 
-    const ownerDeletable = ["DRAFT", "PENDING_PAYMENT", "REFUSED", "DEACTIVATED"].includes(
+    // Statuts supprimables par le propriétaire (enum base : REJECTED / INACTIVE)
+    const ownerDeletable = ["DRAFT", "PENDING_PAYMENT", "REJECTED", "INACTIVE"].includes(
       listing.status
     );
     if (!isStaff && !(isOwner && ownerDeletable)) {

@@ -8,14 +8,24 @@ import {
   serializeListing,
   getPublicationFee,
   generateListingReference,
+  generateUniqueListingSlug,
+  loadDesiredCategoryNames,
   detectSuspiciousContent,
 } from "@/lib/serializers";
-import { PAGE_SIZE_DEFAULT } from "@/lib/constants";
+import { PAGE_SIZE_DEFAULT, CONDITIONS, LISTING_DB_STATUSES, listingStatusToDb } from "@/lib/constants";
+
+/** Les ids ville/catégorie/annonce sont des uuid en base (PostgreSQL Supabase). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Valeurs d'enum `item_condition` acceptées par le filtre `condition` */
+const CONDITION_VALUES: readonly string[] = CONDITIONS.map((c) => c.value);
 
 /**
  * Moteur de recherche d'annonces (public).
  * Filtres : q, category (slug), city, condition, wanted, sort (recent|relevance|popular),
  * page, pageSize, ownerId, status, featured.
+ * Compatibilité : la query `status` accepte le vocabulaire historique des vues
+ * (PENDING_MODERATION/REFUSED/DEACTIVATED), traduit vers l'enum Supabase.
  */
 export async function GET(req: NextRequest) {
   return handleRoute(async () => {
@@ -36,21 +46,30 @@ export async function GET(req: NextRequest) {
     const featured = sp.get("featured") === "1";
     const session = await getSessionUser();
 
+    const emptyPage = () => ({ listings: [], total: 0, page, pageSize, totalPages: 1 });
+
     const where: Record<string, unknown> = {};
     const andConditions: object[] = [];
 
     // Statuts : par défaut PUBLISHED ; csv accepté pour l'espace personnel
-    const statuses = statusParam
+    const statusesRaw = statusParam
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    const statuses = statusesRaw
+      .map(listingStatusToDb)
+      .filter((s) => (LISTING_DB_STATUSES as readonly string[]).includes(s));
+    const filterStatuses = statusesRaw.length > 0 && statusesRaw[0] !== "ALL";
+    if (filterStatuses && statuses.length === 0) {
+      // Aucun statut valide demandé → page vide (même forme de réponse)
+      return jsonOk(emptyPage());
+    }
     if (ownerId) {
+      if (!UUID_RE.test(ownerId)) return jsonOk(emptyPage());
       where.userId = ownerId;
-      if (statuses.length > 0 && statuses[0] !== "ALL") {
-        where.status = { in: statuses };
-      }
+      if (filterStatuses) where.status = { in: statuses };
     } else {
-      where.status = statuses.length > 0 && statuses[0] !== "ALL" ? { in: statuses } : "PUBLISHED";
+      where.status = filterStatuses ? { in: statuses } : "PUBLISHED";
     }
 
     if (q) {
@@ -59,7 +78,7 @@ export async function GET(req: NextRequest) {
         OR: [
           { title: { contains: like } },
           { description: { contains: like } },
-          { wantedText: { contains: like } },
+          { desiredItem: { contains: like } },
         ],
       });
     }
@@ -68,12 +87,14 @@ export async function GET(req: NextRequest) {
       if (cat) {
         andConditions.push({ OR: [{ categoryId: cat.id }, { subcategoryId: cat.id }] });
       } else {
-        where.categoryId = "aucune-correspondance";
+        return jsonOk(emptyPage());
       }
     }
     if (city) where.city = city;
-    if (condition) where.condition = condition;
-    if (wanted) where.wantedText = { contains: `%${escapeLike(wanted)}%` };
+    if (condition && CONDITION_VALUES.includes(condition)) {
+      where.condition = condition;
+    }
+    if (wanted) where.desiredItem = { contains: `%${escapeLike(wanted)}%` };
     if (featured) where.featured = true;
     if (andConditions.length > 0) where.AND = andConditions;
 
@@ -108,8 +129,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // wantedCategory (string) : résolution nom de catégorie depuis desired_category_id
+    const desiredCategoryNames = await loadDesiredCategoryNames(listingsRaw);
+
     return jsonOk({
-      listings: listingsRaw.map((l) => serializeListing(l, favoriteIds.has(l.id), fee)),
+      listings: listingsRaw.map((l) => serializeListing(l, favoriteIds.has(l.id), fee, desiredCategoryNames)),
       total,
       page,
       pageSize,
@@ -137,11 +161,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // wantedCategory : l'UI envoie un NOM de catégorie (string) — résolution vers l'uuid
+    let desiredCategoryId: string | null = null;
+    if (input.wantedCategory) {
+      const wantedCat = await db.category.findFirst({
+        where: {
+          OR: [
+            { name: { equals: input.wantedCategory, mode: "insensitive" } },
+            { slug: { equals: input.wantedCategory.toLowerCase() } },
+          ],
+        },
+        select: { id: true },
+      });
+      desiredCategoryId = wantedCat?.id ?? null;
+    }
+
     const suspectNote = detectSuspiciousContent(input.title, input.description, input.wantedText);
+    const fee = await getPublicationFee();
+    const slug = await generateUniqueListingSlug(input.title);
 
     const listing = await db.listing.create({
       data: {
         reference: generateListingReference(),
+        slug,
         userId: session.id,
         title: input.title,
         description: input.description,
@@ -149,11 +191,12 @@ export async function POST(req: NextRequest) {
         subcategoryId: input.subcategoryId || null,
         condition: input.condition,
         city: input.city,
-        quartier: input.quartier || null,
-        wantedText: input.wantedText,
-        wantedCategory: input.wantedCategory || null,
-        wantedMultiple: input.wantedMultiple,
+        neighborhood: input.quartier || null,
+        desiredItem: input.wantedText,
+        desiredCategoryId,
+        desiredMultiple: input.wantedMultiple,
         status: input.saveAsDraft ? "DRAFT" : "PENDING_PAYMENT",
+        publicationFee: fee,
         moderationNote: suspectNote,
       },
     });
@@ -162,9 +205,9 @@ export async function POST(req: NextRequest) {
       await db.listingImage.createMany({
         data: input.images.map((img, i) => ({
           listingId: listing.id,
-          url: img.url,
+          imageUrl: img.url,
           isPrimary: img.isPrimary || i === 0,
-          sortOrder: i,
+          displayOrder: i,
         })),
       });
     }
@@ -173,7 +216,11 @@ export async function POST(req: NextRequest) {
       where: { id: listing.id },
       include: listingInclude,
     });
+    const desiredCategoryNames = created ? await loadDesiredCategoryNames([created]) : undefined;
 
-    return jsonOk({ listing: created ? serializeListing(created) : null }, 201);
+    return jsonOk(
+      { listing: created ? serializeListing(created, false, fee, desiredCategoryNames) : null },
+      201
+    );
   });
 }

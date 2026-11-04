@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { handleRoute, ApiError, jsonOk } from "@/lib/api-utils";
+import { isTestPayment, legacyPaymentStatus } from "@/lib/payments";
 
 /** Historique des paiements de l'utilisateur */
 export async function GET() {
@@ -12,25 +13,35 @@ export async function GET() {
       where: { userId: session.id },
       orderBy: { createdAt: "desc" },
       include: {
-        listing: { select: { id: true, title: true, images: { take: 1, orderBy: { sortOrder: "asc" } } } },
+        listing: {
+          select: {
+            id: true,
+            title: true,
+            images: { take: 1, orderBy: [{ isPrimary: "desc" }, { displayOrder: "asc" }] },
+          },
+        },
       },
     });
 
+    // Format JSON historique conservé (l'UI React ne change pas) :
+    // reference/provider/method/isTest/paidAt sont traduits depuis les
+    // colonnes Supabase transaction_reference/payment_provider/payment_method/
+    // confirmed_at (isTest = prestataire TEST).
     return jsonOk({
       payments: payments.map((p) => ({
-        reference: p.reference,
+        reference: p.transactionReference,
         amount: p.amount,
-        status: p.status,
-        provider: p.provider,
-        method: p.method,
-        isTest: p.isTest,
+        status: legacyPaymentStatus(p.status),
+        provider: p.paymentProvider,
+        method: p.paymentMethod,
+        isTest: isTestPayment(p.paymentProvider),
         createdAt: p.createdAt.toISOString(),
-        paidAt: p.paidAt?.toISOString() ?? null,
+        paidAt: p.confirmedAt?.toISOString() ?? null,
         listing: p.listing
           ? {
               id: p.listing.id,
               title: p.listing.title,
-              images: p.listing.images.map((i) => ({ url: i.url, isPrimary: i.isPrimary })),
+              images: p.listing.images.map((i) => ({ url: i.imageUrl, isPrimary: i.isPrimary })),
             }
           : null,
       })),

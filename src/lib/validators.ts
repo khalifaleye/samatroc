@@ -6,6 +6,14 @@ import { z } from "zod";
 
 const phoneRegex = /^(\+221)?[0-9\s]{9,15}$/;
 
+/**
+ * Inscription — l'UI envoie toujours firstName/lastName (deux champs distincts).
+ * Depuis la bascule Supabase, la base ne stocke qu'une seule colonne
+ * `profiles.full_name` : le serveur concatène les deux champs via
+ * `buildFullName()` (src/lib/auth.ts) avant l'appel à
+ * `supabase.auth.signUp({ options: { data: { full_name } } })`.
+ * → Le schéma d'entrée reste inchangé pour préserver la compatibilité des vues.
+ */
 export const registerSchema = z.object({
   firstName: z.string().trim().min(2, "Le prénom doit contenir au moins 2 caractères").max(50),
   lastName: z.string().trim().min(2, "Le nom doit contenir au moins 2 caractères").max(50),
@@ -52,6 +60,15 @@ export const updateProfileSchema = z.object({
   whatsappEnabled: z.boolean().optional(),
 });
 
+/**
+ * Schéma de CRÉATION d'annonce — contrat d'ENTRÉE des vues (inchangé) :
+ * l'UI envoie toujours `wantedText` / `wantedCategory` (nom de catégorie) /
+ * `wantedMultiple` / `quartier`. La traduction vers les colonnes Supabase
+ * (`desiredItem`, `desiredCategoryId` uuid, `desiredMultiple`, `neighborhood`)
+ * se fait dans les routes API, jamais ici — ainsi les vues n'ont pas à changer.
+ * Les ids de catégorie sont des uuid en base : validation stricte pour
+ * renvoyer un 400 propre au lieu d'une erreur SQL.
+ */
 export const listingSchema = z.object({
   title: z
     .string()
@@ -63,8 +80,13 @@ export const listingSchema = z.object({
     .trim()
     .min(20, "La description doit contenir au moins 20 caractères")
     .max(3000, "La description ne peut dépasser 3000 caractères"),
-  categoryId: z.string().min(1, "Catégorie requise"),
-  subcategoryId: z.string().optional().nullable(),
+  categoryId: z.string().uuid("Catégorie invalide"),
+  subcategoryId: z
+    .string()
+    .uuid("Sous-catégorie invalide")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   condition: z.enum(["NEUF", "TRES_BON", "BON", "SATISFAISANT"]),
   city: z.string().trim().min(2, "Ville requise").max(60),
   quartier: z.string().trim().max(80).optional().or(z.literal("")),
@@ -100,8 +122,13 @@ export const listingUpdateSchema = listingSchema.partial().extend({
     .optional(),
 });
 
+/**
+ * Changement de statut par le propriétaire. L'UI envoie le vocabulaire
+ * historique (« DEACTIVATED ») ; la base attend « INACTIVE » — la route
+ * normalise via `listingStatusToDb`. Les deux vocables sont donc acceptés.
+ */
 export const listingStatusSchema = z.object({
-  status: z.enum(["PUBLISHED", "DEACTIVATED", "EXCHANGED"]),
+  status: z.enum(["PUBLISHED", "DEACTIVATED", "INACTIVE", "EXCHANGED"]),
 });
 
 export const proposalSchema = z.object({
@@ -133,9 +160,18 @@ export const messageSchema = z.object({
   imageUrl: z.string().optional().or(z.literal("")),
 });
 
+/**
+ * Signalement — zone du domaine échanges/messagerie (tâche 5-c).
+ * Les vues envoient targetType/targetId (annonce, utilisateur, message) —
+ * la route /api/reports les mappe vers les colonnes dédiées du schéma
+ * Supabase (`listingId` / `reportedUserId`, `details` → `description`).
+ * Les deux champs sont devenus optionnels : la vue messagerie signale une
+ * conversation sans les envoyer — la cible (l'autre participant) est alors
+ * dérivée côté serveur depuis la conversation.
+ */
 export const reportSchema = z.object({
-  targetType: z.enum(["LISTING", "USER", "MESSAGE"]),
-  targetId: z.string().min(1),
+  targetType: z.enum(["LISTING", "USER", "MESSAGE"]).optional(),
+  targetId: z.string().trim().min(1).optional(),
   reason: z.enum(["FRAUDE", "CONTENU_INTERDIT", "OFFENSANT", "CONTREFACON", "FAUX_PROFIL", "AUTRE"]),
   details: z.string().trim().max(1000).optional().or(z.literal("")),
 });

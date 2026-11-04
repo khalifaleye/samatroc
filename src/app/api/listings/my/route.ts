@@ -1,7 +1,12 @@
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { handleRoute, jsonOk } from "@/lib/api-utils";
-import { listingInclude, serializeListing, getPublicationFee } from "@/lib/serializers";
+import {
+  listingInclude,
+  serializeListing,
+  getPublicationFee,
+  loadDesiredCategoryNames,
+} from "@/lib/serializers";
 
 /** Mes annonces (espace personnel) */
 export async function GET() {
@@ -25,8 +30,13 @@ export async function GET() {
       ).map((f) => f.listingId)
     );
 
+    // wantedCategory (string) : résolution nom de catégorie depuis desired_category_id
+    const desiredCategoryNames = await loadDesiredCategoryNames(listingsRaw);
+
     return jsonOk({
-      listings: listingsRaw.map((l) => serializeListing(l, favoriteIds.has(l.id), fee)),
+      listings: listingsRaw.map((l) =>
+        serializeListing(l, favoriteIds.has(l.id), fee, desiredCategoryNames)
+      ),
     });
   });
 }

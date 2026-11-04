@@ -9,8 +9,13 @@ import { PAYMENT_PROVIDERS, PUBLICATION_FEE_DEFAULT } from "@/lib/constants";
  */
 export async function GET() {
   return handleRoute(async () => {
-    const feeSetting = await db.siteSetting.findUnique({ where: { key: "publication_fee" } });
-    const fee = feeSetting ? parseInt(feeSetting.value, 10) || PUBLICATION_FEE_DEFAULT : PUBLICATION_FEE_DEFAULT;
+    // Bascule Supabase : site_settings.setting_key / setting_value
+    const feeSetting = await db.siteSetting.findUnique({
+      where: { settingKey: "publication_fee" },
+    });
+    const fee = feeSetting
+      ? parseInt(feeSetting.settingValue, 10) || PUBLICATION_FEE_DEFAULT
+      : PUBLICATION_FEE_DEFAULT;
 
     const mode = process.env.PAYMENT_MODE === "LIVE" ? "LIVE" : "TEST";
     const liveConfigured =

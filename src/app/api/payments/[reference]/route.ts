@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { handleRoute, ApiError, jsonOk } from "@/lib/api-utils";
+import { isTestPayment, legacyListingStatus, legacyPaymentStatus } from "@/lib/payments";
 
 /** Statut d'une transaction (polling client) */
 export async function GET(
@@ -14,7 +15,7 @@ export async function GET(
     const { reference } = await params;
 
     const payment = await db.payment.findUnique({
-      where: { reference },
+      where: { transactionReference: reference },
       include: { listing: { select: { id: true, status: true } } },
     });
     if (!payment) throw new ApiError(404, "Transaction introuvable");
@@ -24,14 +25,14 @@ export async function GET(
 
     return jsonOk({
       payment: {
-        reference: payment.reference,
+        reference: payment.transactionReference,
         amount: payment.amount,
-        status: payment.status,
-        provider: payment.provider,
-        isTest: payment.isTest,
+        status: legacyPaymentStatus(payment.status),
+        provider: payment.paymentProvider,
+        isTest: isTestPayment(payment.paymentProvider),
         listingId: payment.listingId,
-        listingStatus: payment.listing?.status ?? null,
-        paidAt: payment.paidAt?.toISOString() ?? null,
+        listingStatus: payment.listing ? legacyListingStatus(payment.listing.status) : null,
+        paidAt: payment.confirmedAt?.toISOString() ?? null,
       },
     });
   });

@@ -7,9 +7,10 @@ import { adminSettingsSchema } from "@/lib/validators";
 export async function GET() {
   return handleRoute(async () => {
     await requireAdmin();
+    // Bascule Supabase : site_settings.setting_key / setting_value
     const settings = await db.siteSetting.findMany();
     return jsonOk({
-      settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
+      settings: Object.fromEntries(settings.map((s) => [s.settingKey, s.settingValue])),
     });
   });
 }
@@ -23,9 +24,9 @@ export async function PUT(req: NextRequest) {
     const entries = Object.entries(input.settings);
     for (const [key, value] of entries) {
       await db.siteSetting.upsert({
-        where: { key },
-        create: { key, value },
-        update: { value },
+        where: { settingKey: key },
+        create: { settingKey: key, settingValue: value },
+        update: { settingValue: value },
       });
     }
 
@@ -39,7 +40,7 @@ export async function PUT(req: NextRequest) {
 
     const settings = await db.siteSetting.findMany();
     return jsonOk({
-      settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
+      settings: Object.fromEntries(settings.map((s) => [s.settingKey, s.settingValue])),
       message: "Paramètres enregistrés",
     });
   });

@@ -4,7 +4,14 @@ import { handleRoute, readBody, requireAdmin, ApiError, jsonOk, logAdminAction }
 import { adminListingActionSchema } from "@/lib/validators";
 import { listingInclude, serializeListing, getPublicationFee } from "@/lib/serializers";
 
-/** Modération d'une annonce : validation, refus, mise en avant, édition */
+/**
+ * Modération d'une annonce : validation, refus, mise en avant, édition.
+ * Bascule Supabase : statuts en vocabulaire base (PENDING_REVIEW, REJECTED…),
+ * `refusalReason` → `rejectionReason`, `wantedText` → `desiredItem` et
+ * notifications `message`/`relatedId` (colonnes body/linkView supprimées).
+ * La logique reste applicative (moderate_listing SQL ne couvre ni la mise en
+ * avant ni l'édition administrative) — réponses et textes inchangés.
+ */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -21,11 +28,11 @@ export async function PATCH(
     const data: Record<string, unknown> = {};
 
     if (input.action === "publish") {
-      if (!["PENDING_MODERATION", "REFUSED", "DEACTIVATED"].includes(listing.status)) {
+      if (!["PENDING_REVIEW", "REJECTED", "INACTIVE"].includes(listing.status)) {
         throw new ApiError(409, "Cette annonce n'attend pas de validation");
       }
       data.status = "PUBLISHED";
-      data.refusalReason = null;
+      data.rejectionReason = null;
       if (!listing.publishedAt) data.publishedAt = new Date();
       message = "Annonce validée et publiée";
       await db.notification.create({
@@ -33,22 +40,22 @@ export async function PATCH(
           userId: listing.userId,
           type: "LISTING_PUBLISHED",
           title: "Annonce validée",
-          body: `Votre annonce « ${listing.title} » a été validée par la modération et est maintenant en ligne.`,
-          linkView: "my-listings",
+          message: `Votre annonce « ${listing.title} » a été validée par la modération et est maintenant en ligne.`,
+          relatedId: listing.id,
         },
       });
     } else if (input.action === "refuse") {
       if (!input.reason) throw new ApiError(400, "Un motif de refus est requis", { reason: "Motif requis" });
-      data.status = "REFUSED";
-      data.refusalReason = input.reason;
+      data.status = "REJECTED";
+      data.rejectionReason = input.reason;
       message = "Annonce refusée";
       await db.notification.create({
         data: {
           userId: listing.userId,
           type: "LISTING_REFUSED",
           title: "Annonce refusée",
-          body: `Votre annonce « ${listing.title} » a été refusée. Motif : ${input.reason}`,
-          linkView: "my-listings",
+          message: `Votre annonce « ${listing.title} » a été refusée. Motif : ${input.reason}`,
+          relatedId: listing.id,
         },
       });
     } else if (input.action === "feature") {
@@ -64,7 +71,7 @@ export async function PATCH(
       if (input.edits.title !== undefined) data.title = input.edits.title;
       if (input.edits.description !== undefined) data.description = input.edits.description;
       if (input.edits.city !== undefined) data.city = input.edits.city;
-      if (input.edits.wantedText !== undefined) data.wantedText = input.edits.wantedText;
+      if (input.edits.wantedText !== undefined) data.desiredItem = input.edits.wantedText;
     }
 
     await db.listing.update({ where: { id }, data });
@@ -73,7 +80,7 @@ export async function PATCH(
       `LISTING_${input.action.toUpperCase()}`,
       "LISTING",
       id,
-      input.reason ?? input.edits ? JSON.stringify({ reason: input.reason, edits: input.edits }) : undefined
+      input.reason || (input.edits ? JSON.stringify({ reason: input.reason, edits: input.edits }) : undefined)
     );
 
     const updated = await db.listing.findUnique({ where: { id }, include: listingInclude });

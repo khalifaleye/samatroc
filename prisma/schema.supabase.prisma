@@ -181,7 +181,7 @@ model Listing {
   desiredMultiple   Boolean       @default(false) @map("desired_multiple")
   status            ListingStatus @default(DRAFT)
   publicationFee    Int           @default(500) @map("publication_fee")
-  paymentId         String?       @map("payment_id") @db.Uuid
+  paymentId         String?       @unique @map("payment_id") @db.Uuid
   moderationNote    String?       @map("moderation_note")
   rejectionReason   String?       @map("rejection_reason")
   featured          Boolean       @default(false)
@@ -194,10 +194,10 @@ model Listing {
   user      Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
   category  Category           @relation("ListingCategory", fields: [categoryId], references: [id])
   subcategory Category?        @relation("ListingSubcategory", fields: [subcategoryId], references: [id])
-  payment   Payment?           @relation(fields: [paymentId], references: [id])
+  payment   Payment?           @relation("ListingPublicationPayment", fields: [paymentId], references: [id])
   images    ListingImage[]
   favorites Favorite[]
-  payments  Payment[]
+  payments  Payment[]          @relation("ListingPayments")
   proposals ExchangeProposal[] @relation("ProposalTarget")
   offeredIn ExchangeProposal[] @relation("ProposalOffered")
   conversations Conversation[]
@@ -235,7 +235,8 @@ model Payment {
   updatedAt              DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user    Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listing Listing? @relation(fields: [listingId], references: [id])
+  listing Listing? @relation("ListingPayments", fields: [listingId], references: [id])
+  publicationFor Listing? @relation("ListingPublicationPayment")
 
   @@map("payments")
 }

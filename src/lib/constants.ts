@@ -22,16 +22,74 @@ export function conditionLabel(value: string): string {
 }
 
 // ---------- Statuts d'annonce ----------
+// Double vocabulaire assumé :
+//  • l'UI (vues inchangées) connaît les libellés historiques (PENDING_MODERATION, REFUSED, DEACTIVATED)
+//  • la base Supabase utilise l'enum `listing_status` (PENDING_REVIEW, REJECTED, INACTIVE, …)
+// LISTING_STATUSES couvre donc les deux vocables (mêmes libellés/couleurs par paire).
+// Les routes traduisent via listingStatusToDb (entrée) et listingStatusToApi (sortie).
 export const LISTING_STATUSES = [
   { value: "DRAFT", label: "Brouillon", color: "bg-gray-100 text-gray-700" },
   { value: "PENDING_PAYMENT", label: "En attente de paiement", color: "bg-mango-100 text-mango-700" },
+  // Vocabulaire historique (contrat des vues)
   { value: "PENDING_MODERATION", label: "En attente de modération", color: "bg-amber-100 text-amber-700" },
-  { value: "PUBLISHED", label: "Publiée", color: "bg-mint-100 text-forest-700" },
   { value: "REFUSED", label: "Refusée", color: "bg-red-100 text-red-700" },
   { value: "DEACTIVATED", label: "Désactivée", color: "bg-gray-100 text-gray-700" },
+  // Valeurs de l'enum Prisma/Supabase `listing_status`
+  { value: "PENDING_REVIEW", label: "En attente de modération", color: "bg-amber-100 text-amber-700" },
+  { value: "REJECTED", label: "Refusée", color: "bg-red-100 text-red-700" },
+  { value: "INACTIVE", label: "Désactivée", color: "bg-gray-100 text-gray-700" },
+  { value: "PUBLISHED", label: "Publiée", color: "bg-mint-100 text-forest-700" },
   { value: "EXCHANGED", label: "Échangée", color: "bg-forest-600 text-white" },
+  { value: "DELETED", label: "Supprimée", color: "bg-red-100 text-red-700" },
 ] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number]["value"];
+
+/** Valeurs exactes de l'enum base `listing_status` (Supabase) */
+export const LISTING_DB_STATUSES = [
+  "DRAFT",
+  "PENDING_PAYMENT",
+  "PENDING_REVIEW",
+  "PUBLISHED",
+  "REJECTED",
+  "INACTIVE",
+  "EXCHANGED",
+  "DELETED",
+] as const;
+
+/**
+ * Vocabulaire UI (historique) → enum base Supabase.
+ * Appliqué aux données ENTRANTES (query `status`, corps de requêtes).
+ */
+export function listingStatusToDb(value: string): string {
+  switch (value) {
+    case "PENDING_MODERATION":
+      return "PENDING_REVIEW";
+    case "REFUSED":
+      return "REJECTED";
+    case "DEACTIVATED":
+      return "INACTIVE";
+    default:
+      return value;
+  }
+}
+
+/**
+ * Enum base Supabase → vocabulaire UI (historique).
+ * Appliqué aux données SORTANTES pour préserver EXACTEMENT le format JSON
+ * attendu par les vues (ex. statut « DEACTIVATED » affiché « Désactivée »).
+ */
+export function listingStatusToApi(value: string): string {
+  switch (value) {
+    case "PENDING_REVIEW":
+      return "PENDING_MODERATION";
+    case "REJECTED":
+      return "REFUSED";
+    case "INACTIVE":
+      return "DEACTIVATED";
+    default:
+      return value;
+  }
+}
 
 export function listingStatusLabel(value: string): string {
   return LISTING_STATUSES.find((s) => s.value === value)?.label ?? value;
@@ -43,15 +101,68 @@ export function listingStatusColor(value: string): string {
 }
 
 // ---------- Statuts de proposition d'échange ----------
+/**
+ * Statuts de proposition — zone du domaine échanges (tâche 5-c).
+ * L'enum base `proposal_status` (Supabase) est PENDING / ACCEPTED / REJECTED /
+ * COUNTERED / CANCELLED / COMPLETED : les valeurs REJECTED et COUNTERED sont
+ * ajoutées ci-dessous. Les entrées historiques REFUSED / DISCUSSING sont
+ * conservées : l'API expose le vocabulaire legacy (les vues — filtres de
+ * statut et `isPendingish` — s'y réfèrent) et les badges restent rendus quoi
+ * qu'il arrive.
+ */
 export const PROPOSAL_STATUSES = [
   { value: "PENDING", label: "En attente", color: "bg-mango-100 text-mango-700" },
   { value: "ACCEPTED", label: "Acceptée", color: "bg-mint-100 text-forest-700" },
   { value: "REFUSED", label: "Refusée", color: "bg-red-100 text-red-700" },
+  { value: "REJECTED", label: "Refusée", color: "bg-red-100 text-red-700" },
   { value: "DISCUSSING", label: "En discussion", color: "bg-amber-100 text-amber-700" },
+  { value: "COUNTERED", label: "Contre-proposition", color: "bg-amber-100 text-amber-700" },
   { value: "CANCELLED", label: "Annulée", color: "bg-gray-100 text-gray-700" },
   { value: "COMPLETED", label: "Échange réalisé", color: "bg-forest-600 text-white" },
 ] as const;
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number]["value"];
+
+/** Valeurs exactes de l'enum base `proposal_status` (Supabase) */
+export const PROPOSAL_DB_STATUSES = [
+  "PENDING",
+  "ACCEPTED",
+  "REJECTED",
+  "COUNTERED",
+  "CANCELLED",
+  "COMPLETED",
+] as const;
+/** Statut de proposition tel que stocké en base (union littérale de l'enum). */
+export type ProposalDbStatus = (typeof PROPOSAL_DB_STATUSES)[number];
+
+/**
+ * Enum base `proposal_status` (Supabase) → vocabulaire UI (historique).
+ * Appliqué aux données SORTANTES pour préserver le format JSON des vues
+ * (REJECTED → REFUSED, COUNTERED → DISCUSSING) — même mécanique que
+ * listingStatusToApi pour les annonces.
+ */
+export function proposalStatusToApi(value: string): string {
+  switch (value) {
+    case "REJECTED":
+      return "REFUSED";
+    case "COUNTERED":
+      return "DISCUSSING";
+    default:
+      return value;
+  }
+}
+
+/**
+ * Vocabulaire UI (historique) → enum base Supabase.
+ * Appliqué aux données ENTRANTES (query `status`). Les deux vocables sont
+ * acceptés ; retourne null si la valeur est inconnue (filtre alors ignoré).
+ */
+export function proposalStatusToDb(value: string): ProposalDbStatus | null {
+  const mapped =
+    value === "DISCUSSING" ? "COUNTERED" : value === "REFUSED" ? "REJECTED" : value;
+  return (PROPOSAL_DB_STATUSES as readonly string[]).includes(mapped)
+    ? (mapped as ProposalDbStatus)
+    : null;
+}
 
 export function proposalStatusLabel(value: string): string {
   return PROPOSAL_STATUSES.find((s) => s.value === value)?.label ?? value;

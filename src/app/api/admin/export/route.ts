@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handleRoute, requireAdmin } from "@/lib/api-utils";
+import { splitFullName } from "@/lib/auth";
+import { isTestPayment, legacyListingStatus, legacyPaymentStatus } from "@/lib/payments";
 
 /** Export CSV simple des indicateurs (annonces, paiements, inscriptions) */
 export async function GET(req: NextRequest) {
@@ -13,15 +15,26 @@ export async function GET(req: NextRequest) {
 
     if (type === "users") {
       filename = "samatroc-utilisateurs.csv";
-      const users = await db.user.findMany({ orderBy: { createdAt: "desc" } });
+      // Bascule Supabase : db.profile + fullName unique (découpé pour le CSV)
+      const users = await db.profile.findMany({ orderBy: { createdAt: "desc" } });
       csv =
         "Prenom;Nom;Email;Telephone;Ville;Role;Statut;Date inscription\n" +
         users
-          .map((u) =>
-            [u.firstName, u.lastName, u.email, u.phone ?? "", u.city ?? "", u.role, u.status, u.createdAt.toISOString()]
+          .map((u) => {
+            const { firstName, lastName } = splitFullName(u.fullName);
+            return [
+              firstName,
+              lastName,
+              u.email,
+              u.phone ?? "",
+              u.city ?? "",
+              u.role,
+              u.accountStatus,
+              u.createdAt.toISOString(),
+            ]
               .map((v) => String(v).replace(/;/g, ","))
-              .join(";")
-          )
+              .join(";");
+          })
           .join("\n");
     } else if (type === "payments") {
       filename = "samatroc-paiements.csv";
@@ -34,14 +47,15 @@ export async function GET(req: NextRequest) {
         payments
           .map((p) =>
             [
-              p.reference,
+              p.transactionReference,
               p.user?.email ?? "",
               p.amount,
-              p.provider,
-              p.status,
-              p.isTest ? "OUI" : "NON",
+              p.paymentProvider,
+              // Statut traduit dans le vocabulaire historique des vues (SUCCESS…)
+              legacyPaymentStatus(p.status),
+              isTestPayment(p.paymentProvider) ? "OUI" : "NON",
               p.createdAt.toISOString(),
-              p.paidAt?.toISOString() ?? "",
+              p.confirmedAt?.toISOString() ?? "",
             ]
               .map((v) => String(v).replace(/;/g, ","))
               .join(";")
@@ -66,7 +80,7 @@ export async function GET(req: NextRequest) {
               l.category?.name ?? "",
               l.city,
               l.condition,
-              l.status,
+              legacyListingStatus(l.status),
               l.user?.email ?? "",
               l.viewsCount,
               l.createdAt.toISOString(),

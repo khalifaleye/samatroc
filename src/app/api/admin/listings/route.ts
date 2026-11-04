@@ -1,7 +1,12 @@
 import { NextRequest } from "next/server";
+import { ListingStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { handleRoute, requireAdmin, jsonOk, escapeLike } from "@/lib/api-utils";
 import { listingInclude, serializeListing, getPublicationFee } from "@/lib/serializers";
+import { listingStatusToDb } from "@/lib/constants";
+import { splitFullName } from "@/lib/auth";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Liste complète des annonces avec filtres (administration) */
 export async function GET(req: NextRequest) {
@@ -14,7 +19,7 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
     const pageSize = 20;
 
-    const where: Record<string, unknown> = {};
+    const where: Prisma.ListingWhereInput = {};
     if (q) {
       const like = `%${escapeLike(q)}%`;
       where.OR = [
@@ -23,8 +28,14 @@ export async function GET(req: NextRequest) {
         { reference: { contains: like } },
       ];
     }
-    if (status) where.status = status;
-    if (category) where.categoryId = category;
+    // Les vues filtrent avec le vocabulaire historique (PENDING_MODERATION,
+    // REFUSED, DEACTIVATED…) : traduction vers l'enum base Supabase.
+    if (status) where.status = listingStatusToDb(status) as ListingStatus;
+    // Le filtre catégorie porte l'uuid de la table categories ; un id non uuid
+    // ne doit pas lever d'erreur SQL → aucun résultat.
+    if (category) {
+      where.categoryId = UUID_RE.test(category) ? category : { in: [] };
+    }
 
     const [total, listingsRaw] = await Promise.all([
       db.listing.count({ where }),
@@ -33,22 +44,28 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { ...listingInclude, user: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } } },
+        include: {
+          ...listingInclude,
+          user: { select: { id: true, fullName: true, avatarUrl: true, email: true } },
+        },
       }),
     ]);
 
     const fee = await getPublicationFee();
     return jsonOk({
-      listings: listingsRaw.map((l) => ({
-        ...serializeListing(l, false, fee),
-        owner: {
-          id: l.user.id,
-          firstName: l.user.firstName,
-          lastName: l.user.lastName,
-          email: l.user.email,
-          avatarUrl: l.user.avatarUrl,
-        },
-      })),
+      listings: listingsRaw.map((l) => {
+        const { firstName, lastName } = splitFullName(l.user.fullName);
+        return {
+          ...serializeListing(l, false, fee),
+          owner: {
+            id: l.user.id,
+            firstName,
+            lastName,
+            email: l.user.email,
+            avatarUrl: l.user.avatarUrl,
+          },
+        };
+      }),
       total,
       page,
       pageSize,
